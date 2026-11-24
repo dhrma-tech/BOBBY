@@ -162,6 +162,59 @@ await step("coach answers questions with arrows on the board + TTS", async () =>
   check("TTS speak() called for coach answers", spoken.length >= 2, `calls=${spoken.length}`);
 });
 
+await step("scroll: video library", async () => {
+  // Thumbnails must be frames from inside the video (hq1/hq2/hq3), never the uploader's high-res cover.
+  const covers = [];
+  const onReq = (r) => { if (/ytimg\.com\/vi\/[^/]+\/(maxresdefault|sddefault|hq720)/.test(r.url())) covers.push(r.url()); };
+  p.on("request", onReq);
+  await p.goto(BASE + "#/scroll");
+  await p.waitForSelector(".cubicle", { timeout: 30000 });
+  const meta = await p.evaluate(async () => { try { return await (await fetch("./data/cubicle/meta.json")).json(); } catch { return {}; } });
+  const total = await p.evaluate(async () => { try { return (await (await fetch("./data/cubicle/videos.json")).json()).videos.length; } catch { return 0; } });
+  check("scroll catalogue has at least 500 videos", total >= 500, `videos=${total}${meta.keyless ? " (key-less build: run the pipeline with YT_API_KEY)" : ""}`);
+  await p.waitForSelector('[data-testid="cubicle-list"]', { timeout: 15000 });
+  // Show every level so the count is the full list, then narrow to one level.
+  for (const l of ["b", "i", "a", "x"]) { const b = p.locator(`[data-testid="lv-${l}"]`); if ((await b.getAttribute("aria-pressed")) !== "true") await b.click(); }
+  const count = async () => Number(await p.locator('[data-testid="cubicle-list"]').getAttribute("data-count"));
+  const all = await count();
+  for (const l of ["i", "a", "x"]) await p.locator(`[data-testid="lv-${l}"]`).click();
+  const beginners = await count();
+  check("scroll filters change the row count", all > 0 && beginners < all, `all=${all} beginner=${beginners}`);
+  for (const l of ["i", "a", "x"]) await p.locator(`[data-testid="lv-${l}"]`).click();
+  await p.waitForTimeout(1500);
+  const thumbs = await p.locator(".cubicle .thumb img").evaluateAll((els) => els.map((e) => e.getAttribute("src") || ""));
+  const frames = thumbs.filter((u) => /\/hq[123]\.jpg$/.test(u)).length;
+  check("scroll thumbnails are frames from the video timeline", thumbs.length > 0 && frames / thumbs.length >= 0.9, `frames=${frames}/${thumbs.length}`);
+  // Save the first card, reload, and find it under Saved.
+  const first = p.locator('[data-testid="cubicle-list"] .yt').first();
+  const vid = await first.getAttribute("data-video");
+  await first.locator(".yt-thumbwrap").hover(); await first.getByRole("button", { name: "Save", exact: true }).click();
+  await p.waitForTimeout(700);
+  await p.reload(); await p.waitForSelector(".cubicle");
+  await p.goto(BASE + "#/scroll?tab=saved"); await p.waitForSelector(`.row[data-video="${vid}"]`, { timeout: 10000 });
+  check("scroll saved items survive reload", true, vid);
+  // Watch page: official nocookie embed; focus mode hides the side panel and the vouch box.
+  await p.goto(BASE + `#/scroll/watch/${vid}`);
+  await p.waitForSelector('[data-testid="cubicle-embed"]');
+  check("scroll never loads the uploader's high-res covers", covers.length === 0, covers.slice(0, 2).join(" "));
+  const src = await p.locator('[data-testid="cubicle-embed"]').getAttribute("src");
+  check("scroll plays through the youtube-nocookie embed", src.startsWith("https://www.youtube-nocookie.com/embed/"), src.slice(0, 60));
+  const sideBefore = await p.locator('[data-testid="watch-side"]').count();
+  await p.locator('[data-testid="focus-btn"]').click();
+  const sideAfter = await p.locator('[data-testid="watch-side"]').count();
+  const vouchAfter = await p.locator('[data-testid="vouch-box"]').count();
+  check("scroll focus mode hides the side panel", sideBefore === 1 && sideAfter === 0 && vouchAfter === 0, `before=${sideBefore} after=${sideAfter}`);
+  await p.locator('[data-testid="focus-btn"]').click();
+  // Export includes Cubicle state.
+  await p.getByRole("button", { name: "Settings" }).click();
+  const [dl] = await Promise.all([p.waitForEvent("download"), p.getByRole("button", { name: "Export", exact: true }).click()]);
+  const blob = JSON.parse(await (await import("node:fs/promises")).readFile(await dl.path(), "utf8"));
+  const cstate = blob?.data?.cubicle?.[0]?.value;
+  check("export contains Scroll state", !!cstate && Array.isArray(cstate.saved) && cstate.saved.includes(vid), `saved=${cstate?.saved?.length}`);
+  await p.keyboard.press("Escape");
+  p.off("request", onReq);
+});
+
 await step("other pages render", async () => {
   for (const t of ["endgames", "openings", "tricks", "challenges"]) {
     await p.goto(BASE + `#/train?tab=${t}`);
