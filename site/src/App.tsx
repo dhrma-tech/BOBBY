@@ -1,0 +1,114 @@
+import { useEffect, useMemo, useState } from "react";
+import { Play } from "./pages/Play";
+import { Review } from "./pages/Review";
+import { Learn } from "./pages/Learn";
+import { Train } from "./pages/Train";
+import { Stats } from "./pages/Stats";
+import { Palette } from "./components/Palette";
+import { Toaster } from "./components/Toast";
+import { SettingsDialog } from "./dialogs/SettingsDialog";
+import { Dialog } from "./dialogs/Dialog";
+import { go, useRoute } from "./lib/router";
+import { commands, type Cmd } from "./lib/commands";
+import { useSettings } from "./lib/useSettings";
+import { settings, store } from "./bridge/storage";
+import { useBridgeStatus } from "./bridge/py";
+
+const NAV: [string, string, string][] = [["Play", "/", ""], ["Learn", "/learn", "learn"], ["Train", "/train", "train"], ["Stats", "/stats", "stats"]];
+const SHORTCUTS: [string, string][] = [
+  ["Ctrl/Cmd + K", "Command palette"], ["?", "Show shortcuts"], ["g then p / l / t / s", "Go to Play, Learn, Train, Stats"],
+  ["← / →", "Step through moves"], ["F", "Flip board"], ["H", "Hint (press again for more)"], ["U", "Take back"], ["N", "New game"], [",", "Settings"],
+];
+
+const Gear = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true">
+    <path d="M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6zM12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2" />
+  </svg>
+);
+
+export default function App() {
+  const route = useRoute();
+  const s = useSettings();
+  const bs = useBridgeStatus();
+  const [pal, setPal] = useState(false);
+  const [set, setSet] = useState(false);
+  const [help, setHelp] = useState(false);
+
+  useEffect(() => {
+    if (s.theme === "auto") document.documentElement.removeAttribute("data-theme");
+    else document.documentElement.setAttribute("data-theme", s.theme);
+  }, [s.theme]);
+
+  useEffect(() => {
+    let g = false;
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") { e.preventDefault(); setPal((p) => !p); return; }
+      const t = e.target as HTMLElement;
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.isContentEditable)) { if (e.key === "Escape") t.blur(); return; }
+      if (e.metaKey || e.ctrlKey || e.altKey || document.querySelector(".dialog-wrap")) return;
+      if (g) {
+        g = false;
+        const m: Record<string, string> = { p: "/", l: "/learn", t: "/train", s: "/stats" };
+        if (m[e.key]) { go(m[e.key]); e.preventDefault(); return; }
+      }
+      if (e.key === "g") { g = true; setTimeout(() => { g = false; }, 900); }
+      else if (e.key === "?") setHelp((h) => !h);
+      else if (e.key === ",") setSet(true);
+    };
+    addEventListener("keydown", onKey);
+    return () => removeEventListener("keydown", onKey);
+  }, []);
+
+  const cmds = useMemo<Cmd[]>(() => {
+    if (!pal) return [];
+    const last = async () => { const gs = await store.listGames(); if (gs[0]) go(`/review/${gs[0].id}`); };
+    return [
+      ...commands.get(),
+      ...NAV.map(([l, h]) => ({ id: "p:" + h, label: l, hint: "Page", run: () => go(h) })),
+      { id: "review-last", label: "Review last game", hint: "Page", run: () => void last() },
+      { id: "settings", label: "Settings", hint: "Dialog", keys: ",", run: () => setSet(true) },
+      { id: "data", label: "Export or import data", hint: "Dialog", run: () => setSet(true) },
+      { id: "t-light", label: "Theme: light", hint: "Action", run: () => settings.set({ theme: "light" }) },
+      { id: "t-dark", label: "Theme: dark", hint: "Action", run: () => settings.set({ theme: "dark" }) },
+      { id: "t-auto", label: "Theme: match system", hint: "Action", run: () => settings.set({ theme: "auto" }) },
+      { id: "sounds", label: s.sounds ? "Sounds: off" : "Sounds: on", hint: "Action", run: () => settings.set({ sounds: !s.sounds }) },
+      ...([["puzzles", "Puzzles"], ["endgames", "Endgames"], ["openings", "Openings explorer"], ["tricks", "Tricks library"], ["challenges", "Daily plan and challenges"]] as const).map(([t, l]) => ({ id: "tr:" + t, label: l, hint: "Train", run: () => go(`/train?tab=${t}`) })),
+      { id: "persona", label: "Change coach persona", hint: "Dialog", run: () => setSet(true) },
+      { id: "voice", label: s.voice.enabled ? "Voice: off" : "Voice: on", hint: "Action", run: () => settings.set({ voice: { ...s.voice, enabled: !s.voice.enabled } }) },
+      { id: "help", label: "Keyboard shortcuts", hint: "Help", keys: "?", run: () => setHelp(true) },
+    ];
+  }, [pal, s.sounds, s.voice]);
+
+  const [p0, p1] = route.path;
+  const page = p0 === "review" && p1 ? <Review id={p1} key={p1} />
+    : p0 === "learn" ? <Learn /> : p0 === "train" ? <Train /> : p0 === "stats" ? <Stats />
+    : <Play />;
+  const active = p0 === "review" ? "" : p0 ?? "";
+
+  return (
+    <div className="shell">
+      <a className="skip" href="#main" onClick={(e) => { e.preventDefault(); document.getElementById("main")?.focus(); }}>Skip to content</a>
+      <header className="top">
+        <a className="brand" href="#/" aria-label="Bobby home"><img className="brand-mark" src="./icon.svg" alt="" width="32" height="32" />Bobby</a>
+        <nav className="topnav" aria-label="Main">
+          {NAV.map(([l, h, k]) => <a key={h} href={"#" + h} className={"tn" + (active === k ? " on" : "")} aria-current={active === k ? "page" : undefined}>{l}</a>)}
+        </nav>
+        <div className="top-r">
+          {bs.mode === "loading" ? <span className="pill" title="Loading the Python core in the background">Loading core…</span> : null}
+          {bs.mode === "fallback" ? <span className="pill warn" title={bs.error ?? "Python core unavailable; using dev fallback"}>Dev fallback</span> : null}
+          <button className="kbtn" onClick={() => setPal(true)} aria-label="Command palette"><kbd>⌘K</kbd></button>
+          <button className="icon-btn" onClick={() => setSet(true)} aria-label="Settings"><Gear /></button>
+        </div>
+      </header>
+      <main id="main" tabIndex={-1}>{page}</main>
+      {pal ? <Palette cmds={cmds} onClose={() => setPal(false)} /> : null}
+      {set ? <SettingsDialog onClose={() => setSet(false)} /> : null}
+      {help ? (
+        <Dialog title="Keyboard shortcuts" onClose={() => setHelp(false)}>
+          <dl className="keys-dl">{SHORTCUTS.map(([k, v]) => <div key={k}><dt><kbd>{k}</kbd></dt><dd>{v}</dd></div>)}</dl>
+        </Dialog>
+      ) : null}
+      <Toaster />
+    </div>
+  );
+}
