@@ -26,6 +26,7 @@ class BobbyDB extends Dexie {
   challenges!: Table<Challenge, string>;
   achievements!: Table<Achievement, string>;
   current!: Table<KV, string>; // autosave of the game in progress
+  cubicle!: Table<KV, string>; // Cubicle video library state (key "state"): saved, done, queue, notes, positions...
   constructor() {
     super("bobby");
     this.version(1).stores({
@@ -35,6 +36,8 @@ class BobbyDB extends Dexie {
     this.version(2).stores({ coachCache: "key" });
     // v3: the AI coach was removed (rule-based coach only): drop its answer cache and the personas table.
     this.version(3).stores({ coachCache: null, personas: null });
+    // v4: Cubicle (video library) state. New table only; existing data is untouched.
+    this.version(4).stores({ cubicle: "key" });
   }
 }
 
@@ -55,7 +58,7 @@ export const store = {
   clearCurrent: () => db.current.delete("game"),
 };
 
-const LIST_TABLES = ["games", "analysis", "puzzleProgress", "lessonProgress", "challenges", "achievements"] as const;
+const LIST_TABLES = ["games", "analysis", "puzzleProgress", "lessonProgress", "challenges", "achievements", "cubicle"] as const;
 
 /** Export everything through Python `export_all`. Shape follows py/bobby/export.py SCHEMA. */
 export async function exportAll(): Promise<string> {

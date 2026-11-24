@@ -5,7 +5,7 @@ VERSION = 1
 SCHEMA = {
     "profile": (dict, type(None)), "games": list, "analysis": list, "weakness": (dict, type(None)),
     "puzzleProgress": list, "lessonProgress": (list, dict), "challenges": list, "achievements": list,
-    "settings": dict, "personas": list,
+    "settings": dict, "personas": list, "cubicle": list,
 }
 
 
