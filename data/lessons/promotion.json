@@ -2,7 +2,7 @@
  "id": "promotion",
  "title": "Promotion",
  "section": "Special moves",
- "order": 11,
+ "order": 14,
  "steps": [
   {
    "type": "info",

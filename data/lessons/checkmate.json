@@ -2,7 +2,7 @@
  "id": "checkmate",
  "title": "Checkmate",
  "section": "Check and mate",
- "order": 13,
+ "order": 17,
  "steps": [
   {
    "type": "info",

@@ -2,7 +2,7 @@
  "id": "queen-moves",
  "title": "How the queen moves",
  "section": "Basics",
- "order": 4,
+ "order": 5,
  "steps": [
   {
    "type": "info",

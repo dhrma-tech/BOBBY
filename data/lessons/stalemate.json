@@ -2,7 +2,7 @@
  "id": "stalemate",
  "title": "Stalemate",
  "section": "Check and mate",
- "order": 14,
+ "order": 18,
  "steps": [
   {
    "type": "info",

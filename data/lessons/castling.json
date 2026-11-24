@@ -2,7 +2,7 @@
  "id": "castling",
  "title": "Castling",
  "section": "Special moves",
- "order": 9,
+ "order": 12,
  "steps": [
   {
    "type": "info",

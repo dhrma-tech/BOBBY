@@ -2,7 +2,7 @@
  "id": "discovered-attack",
  "title": "Discovered attack",
  "section": "Tactics",
- "order": 20,
+ "order": 34,
  "steps": [
   {
    "type": "info",

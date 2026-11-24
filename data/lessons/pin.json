@@ -2,7 +2,7 @@
  "id": "pin",
  "title": "The pin",
  "section": "Tactics",
- "order": 18,
+ "order": 32,
  "steps": [
   {
    "type": "info",

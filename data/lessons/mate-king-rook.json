@@ -2,7 +2,7 @@
  "id": "mate-king-rook",
  "title": "Mate with king and rook",
  "section": "Basic mates",
- "order": 16,
+ "order": 22,
  "steps": [
   {
    "type": "info",

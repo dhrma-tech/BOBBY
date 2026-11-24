@@ -2,7 +2,7 @@
  "id": "knight-moves",
  "title": "How the knight moves",
  "section": "Basics",
- "order": 5,
+ "order": 6,
  "steps": [
   {
    "type": "info",

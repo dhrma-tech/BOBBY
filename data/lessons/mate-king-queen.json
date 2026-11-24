@@ -2,7 +2,7 @@
  "id": "mate-king-queen",
  "title": "Mate with king and queen",
  "section": "Basic mates",
- "order": 15,
+ "order": 20,
  "steps": [
   {
    "type": "info",

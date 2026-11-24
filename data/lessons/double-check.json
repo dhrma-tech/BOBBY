@@ -2,7 +2,7 @@
  "id": "double-check",
  "title": "Double check",
  "section": "Tactics",
- "order": 21,
+ "order": 35,
  "steps": [
   {
    "type": "info",

@@ -2,7 +2,7 @@
  "id": "piece-values",
  "title": "What the pieces are worth",
  "section": "Basics",
- "order": 8,
+ "order": 10,
  "steps": [
   {
    "type": "info",

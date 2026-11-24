@@ -2,7 +2,7 @@
  "id": "en-passant",
  "title": "En passant",
  "section": "Special moves",
- "order": 10,
+ "order": 13,
  "steps": [
   {
    "type": "info",
