@@ -14,6 +14,7 @@ const PAGES: Item[] = [
   { id: "pg:play", label: "Play vs Bobby", kind: "Page", href: "/", kw: "game play" },
   { id: "pg:learn", label: "Learn", kind: "Page", href: "/learn", kw: "lessons course" },
   { id: "pg:stats", label: "Stats", kind: "Page", href: "/stats", kw: "rating accuracy history games" },
+  { id: "pg:scroll", label: "Scroll: chess videos", kind: "Page", href: "/scroll", kw: "video youtube watch library course cubicle" },
   ...([["puzzles", "Puzzles", "tactics"], ["endgames", "Endgame trainer", "tablebase"], ["openings", "Openings explorer", "repertoire"], ["tricks", "Tricks library", "knowledge"], ["challenges", "Daily plan and challenges", "streak achievements"]] as const)
     .map(([t, l, kw]): Item => ({ id: "tr:" + t, label: l, kind: "Train", href: `/train?tab=${t}`, kw })),
 ];
@@ -75,7 +76,7 @@ export function SearchBar({ base }: { base: Cmd[] }) {
     const down = (e: MouseEvent) => { if (!wrap.current?.contains(e.target as Node)) setOpen(false); };
     const key = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement;
-      if (e.key !== "/" || e.metaKey || e.ctrlKey || e.altKey || (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.isContentEditable))) return;
+      if (e.defaultPrevented || e.key !== "/" || e.metaKey || e.ctrlKey || e.altKey || (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.isContentEditable))) return;
       e.preventDefault(); input.current?.focus();
     };
     addEventListener("mousedown", down); addEventListener("keydown", key);
