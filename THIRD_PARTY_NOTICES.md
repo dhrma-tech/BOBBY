@@ -31,3 +31,7 @@ CC0 data needs no attribution; it is credited here as a courtesy. "Lichess" is a
 | React, Vite, Dexie, and other npm dependencies | MIT / Apache-2.0 / BSD | See `site/package.json` and the lockfile for the exact list |
 
 If you redistribute a build, review the licenses in `site/package-lock.json` and the Maia weights license for the exact versions you include.
+
+## Video metadata (Scroll)
+
+Video metadata from YouTube; videos belong to their creators and play in the official embedded player. Scroll lists only metadata (video id, title, channel, duration, publish date), obtained through YouTube's public oEmbed endpoint, RSS feeds and, when a key is configured, the YouTube Data API. Videos play only in YouTube's embedded player (`youtube-nocookie.com`). Thumbnails are YouTube's automatically generated frames, loaded from YouTube's image servers. Bobby does not download or re-host any video or image.

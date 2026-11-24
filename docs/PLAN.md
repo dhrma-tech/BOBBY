@@ -206,3 +206,7 @@ Pipeline rules:
 
 ## 14. Claude Code kickoff prompt
 "Read docs/PLAN.md. Scaffold the Vite + React + TS app from the Cubicle design base, set up Dexie schema, Engine interface with Stockfish adapter, board and local two-player play first, then proceed through the plan. Keep replies short. Ask only when blocked."
+
+## Scroll (added 2026-11-24 as Cubicle, renamed)
+
+A chess video library at `#/scroll` (lazy-loaded page): a 19-section syllabus of the best chess videos on YouTube, built offline by `scripts/cubicle/` (sources, oEmbed check, gate, classify, score, diversity caps, export) into `data/cubicle/*.json` (format: `docs/cubicle-data.md`). Cubicle-style card grid with timeline-frame thumbnails (never the uploader's cover), the official nocookie embed, state in IndexedDB (Dexie v4 table `cubicle`) and in export/import. Practice links connect videos to Learn and Train; weakness tags pick videos for your mistakes.
