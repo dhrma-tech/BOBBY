@@ -60,7 +60,14 @@ log(`python files: ${files.length}`);
 const dataSrc = join(repo, "data");
 if (existsSync(dataSrc)) {
   rmSync(join(pub, "data"), { recursive: true, force: true });
-  copy(dataSrc, join(pub, "data"));
+  // Cubicle: only the exported catalogue JSON ships; the pipeline's raw/ cache and reports stay in the repo.
+  const CUBICLE_SHIP = new Set(["taxonomy.json", "videos.json", "latest.json", "paths.json", "meta.json"]);
+  const shipData = (p) => {
+    const r = relative(dataSrc, p).split("\\").join("/");
+    if (!r.startsWith("cubicle/")) return true; // everything outside cubicle/ ships as before
+    return CUBICLE_SHIP.has(r.slice("cubicle/".length)); // only the exported catalogue files, no raw/ or sources
+  };
+  cpSync(dataSrc, join(pub, "data"), { recursive: true, dereference: true, filter: shipData });
   log("data copied");
 }
 // 5. Lesson index (the data agent ships one JSON per lesson; the Learn page needs a list).
