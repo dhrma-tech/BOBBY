@@ -14,7 +14,10 @@ TITLES = {
 BEGINNER_LESSONS = {"never": "board-setup", "moves": "check"}
 TAG_LESSON = {"fork": "fork", "pin": "pin", "skewer": "skewer", "discovered": "discovered-attack",
               "back_rank": "back-rank-mate", "hanging_piece": "hanging-pieces",
-              "endgame_k_p": "endgame-king-and-pawn", "endgame_rook": "endgame-rook-bridge"}
+              "endgame_k_p": "endgame-king-and-pawn", "endgame_rook": "endgame-rook-bridge",
+              "missed_mate": "mate-in-one-drill", "mate_threat": "scholars-mate-defend",
+              "removing_defender": "removing-defender", "missed_capture": "counting-exchanges",
+              "passed_pawn": "pawn-structure", "king_activity": "king-activity", "opposition": "opposition"}
 
 
 def tag_title(tag: str) -> str:

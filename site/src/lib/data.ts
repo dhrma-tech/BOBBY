@@ -58,7 +58,9 @@ export function sections(index: LessonMeta[]): { name: string; lessons: LessonMe
 /** Weakness tag (Python) -> lesson id. */
 export const TAG_LESSON: Record<string, string> = {
   fork: "fork", pin: "pin", skewer: "skewer", discovered: "discovered-attack", back_rank: "back-rank-mate",
-  hanging_piece: "hanging-pieces", missed_capture: "hanging-pieces", missed_mate: "checkmate", mate_threat: "checkmate",
+  hanging_piece: "hanging-pieces", missed_capture: "counting-exchanges", missed_mate: "mate-in-one-drill",
+  mate_threat: "scholars-mate-defend", removing_defender: "removing-defender", passed_pawn: "pawn-structure",
+  king_activity: "king-activity", opposition: "opposition", smothered_mate: "smothered-mate",
   endgame_k_p: "endgame-king-and-pawn", endgame_rook: "endgame-rook-bridge", double_check: "double-check",
 };
 export const lessonForTag = (t: string) => TAG_LESSON[t] ?? (t.startsWith("opening_") ? "opening-develop" : null);
