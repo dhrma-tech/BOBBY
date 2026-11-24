@@ -8,11 +8,11 @@ import { go } from "../lib/router";
 
 interface Msg { id: number; role: "you" | "bobby"; text: string; answer?: CoachAnswer; summary?: boolean }
 
-const Spark = () => (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-    <path d="M12 3l1.8 4.9L18.7 9.7 13.8 11.5 12 16.4 10.2 11.5 5.3 9.7l4.9-1.8z" /><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z" />
-  </svg>
+/** Ask Bobby's logo: the crystal knight (public/coach-knight*.png, transparent background). */
+const Knight = ({ size = 96 }: { size?: number }) => (
+  <img className="coach-knight" src={size > 96 ? "./coach-knight.png" : "./coach-knight-96.png"} alt="" width={size} height={size} draggable={false} />
 );
+
 const Chart = () => (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="M5 20V11M12 20V5M19 20v-7" /></svg>
 );
@@ -21,7 +21,7 @@ const Chart = () => (
 export function CoachRail({ onOpen }: { onOpen: () => void }) {
   return (
     <aside className="rail coach-rail" aria-label="Ask Bobby (closed)">
-      <button className="rail-btn accent" onClick={onOpen} aria-label="Open Ask Bobby" title="Open Ask Bobby"><Spark /></button>
+      <button className="rail-btn accent" onClick={onOpen} aria-label="Open Ask Bobby" title="Open Ask Bobby"><Knight /></button>
     </aside>
   );
 }
@@ -91,12 +91,12 @@ export function CoachDrawer({ fen, locked, summary, onClose, hidden, board }: {
   return (
     <aside className={"drawer coach-card" + (locked ? " locked" : "")} aria-label="Ask Bobby" hidden={hidden}>
       <div className="drawer-h">
-        <span className="coach-mark" aria-hidden="true"><Spark /></span><h2>Ask Bobby</h2>
+        <span className="coach-mark" aria-hidden="true"><Knight /></span><h2>Ask Bobby</h2>
         {onClose ? <button className="icon-btn coach-x" onClick={onClose} aria-label="Close Ask Bobby" title="Close (reopens after the game)">×</button> : null}
       </div>
       {locked ? (
         <div className="coach-locked" data-testid="coach-locked">
-          <span className="coach-lock-ico" aria-hidden="true"><Spark /></span>
+          <span className="coach-lock-ico" aria-hidden="true"><Knight size={256} /></span>
           <p><strong>Coach is resting</strong></p>
           <p className="muted small">{locked}</p>
         </div>

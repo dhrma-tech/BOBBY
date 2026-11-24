@@ -111,7 +111,7 @@ export default function App() {
     <div className="shell">
       <a className="skip" href="#main" onClick={(e) => { e.preventDefault(); document.getElementById("main")?.focus(); }}>Skip to content</a>
       <header className="top">
-        <a className="brand" href="#/" aria-label="Bobby home"><img className="brand-mark" src="./icon.svg" alt="" width="32" height="32" />Bobby</a>
+        <a className="brand" href="#/" aria-label="Bobby home"><span className="brand-mark" aria-hidden="true"><img src="./coach-knight-96.png" alt="" width="30" height="30" draggable={false} /></span>Bobby</a>
         <div className="top-c">
           <nav className="topnav" aria-label="Main">
             {NAV.map(([l, h, k]) => <a key={h} href={"#" + h} className={"tn" + (active === k ? " on" : "")} aria-current={active === k ? "page" : undefined}>{l}</a>)}

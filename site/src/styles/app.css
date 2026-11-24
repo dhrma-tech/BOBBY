@@ -70,7 +70,10 @@ kbd { font: 500 12px var(--font-ui); border: 1px solid var(--line); border-botto
 .top-c { grid-area: center; display: flex; align-items: center; gap: 18px; }
 .brand { font: 700 21px var(--font-display); letter-spacing: -0.03em; display: inline-flex; align-items: center; gap: 8px; }
 .brand:hover { text-decoration: none; }
-.brand-mark { width: 32px; height: 32px; flex: none; border-radius: 9px; display: block; }
+/* Brand: the crystal knight on the same deep badge as the Ask Bobby panel, in both themes. */
+.brand-mark { width: 34px; height: 34px; flex: none; border-radius: 10px; display: grid; place-items: center; overflow: hidden;
+  background: radial-gradient(circle at 50% 35%, #1f2a33, #07090b 75%); box-shadow: inset 0 0 0 1px rgb(255 255 255 / .08); }
+.brand-mark img { width: 30px; height: 30px; object-fit: contain; display: block; pointer-events: none; user-select: none; }
 .topnav { display: flex; gap: 4px; }
 .tn { padding: 6px 12px; border-radius: 99px; font-weight: 550; color: var(--moss); }
 .tn:hover { background: var(--wash); text-decoration: none; color: var(--ink); }
@@ -425,15 +428,20 @@ section.chart { margin-top: 14px; }
 .coach-card .drawer-h { gap: 8px; }
 .coach-card .drawer-h h2 { font-size: 19px; }
 .coach-card .icon-btn { width: 32px; height: 32px; background: var(--wash); font-size: 20px; }
-.coach-mark { width: 30px; height: 30px; border-radius: 10px; display: grid; place-items: center; background: var(--accent); color: var(--accent-ink); flex: none; }
+/* The crystal knight sits on a deep badge in both themes so the glass and its rainbow refractions stay visible. */
+.coach-mark { width: 34px; height: 34px; border-radius: 11px; display: grid; place-items: center; flex: none; overflow: hidden;
+  background: radial-gradient(circle at 50% 35%, #1f2a33, #07090b 75%); box-shadow: inset 0 0 0 1px rgb(255 255 255 / .08); }
+.coach-knight { width: 100%; height: 100%; object-fit: contain; display: block; pointer-events: none; user-select: none; }
+.coach-mark .coach-knight { width: 30px; height: 30px; }
 .coach-src { padding: 8px 12px; border-radius: 12px; background: var(--surface); }
 .coach-card .msg { border-radius: 18px; }
 .coach-card .typed input { width: 100%; border-radius: 99px; padding: 10px 16px; background: var(--surface); border-color: transparent; }
 .coach-card .chip { font-size: 13px; }
 .coach-locked { flex: 1; display: grid; place-content: center; justify-items: center; gap: 6px; text-align: center; padding: 24px; }
 .coach-locked p { max-width: 26ch; }
-.coach-lock-ico { width: 52px; height: 52px; border-radius: 18px; display: grid; place-items: center; background: var(--surface); color: var(--moss); margin-bottom: 6px; }
-.coach-lock-ico svg { width: 26px; height: 26px; }
+.coach-lock-ico { width: 96px; height: 96px; border-radius: 26px; display: grid; place-items: center; margin-bottom: 8px; overflow: hidden;
+  background: radial-gradient(circle at 50% 35%, #1f2a33, #07090b 75%); box-shadow: inset 0 0 0 1px rgb(255 255 255 / .08), 0 10px 30px rgb(0 0 0 / .25); }
+.coach-lock-ico .coach-knight { width: 84px; height: 84px; opacity: .9; }
 
 
 @media (max-width: 1180px) {
@@ -536,7 +544,8 @@ section.chart { margin-top: 14px; }
 .rail-btn { width: 40px; height: 40px; border-radius: 12px; border: 0; background: transparent; color: var(--ink); display: grid; place-items: center; transition: background .15s; }
 .rail-btn:hover:not(:disabled) { background: var(--wash); }
 .rail-btn.danger { color: var(--danger); }
-.rail-btn.accent { background: var(--accent); color: var(--accent-ink); }
+.rail-btn.accent { background: radial-gradient(circle at 50% 35%, #1f2a33, #07090b 75%); box-shadow: inset 0 0 0 1px rgb(255 255 255 / .1); padding: 3px; }
+.rail-btn.accent:hover:not(:disabled) { background: radial-gradient(circle at 50% 35%, #2a3944, #0b0e11 75%); }
 .rail-sep { width: 22px; height: 1px; background: var(--line); margin: 2px 0; }
 .rail-hint { font: 650 11px var(--font-ui); color: var(--c-best); }
 .panel-hide { align-self: flex-end; margin-bottom: -10px; width: 30px; height: 30px; border-radius: 10px; border: 0; background: var(--surface); color: var(--moss); font-size: 18px; line-height: 1; }
