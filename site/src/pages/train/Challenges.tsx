@@ -2,11 +2,12 @@
 import { useEffect, useState } from "react";
 import { py } from "../../bridge/py";
 import { db, store } from "../../bridge/storage";
-import type { Achievement, Challenge, PlanItem } from "../../bridge/types";
+import type { Achievement, Challenge, PlanItem, Progression } from "../../bridge/types";
+import { progressFacts, summarize, type CoachAnswer } from "../../lib/coach";
 import { ensureProfile } from "../../dialogs/LevelCard";
 import { lessonForTag, TAG_THEME } from "../../lib/data";
 import { today } from "../../lib/chess";
-import { refreshAchievements, streakOf, todaysChallenges } from "../../lib/progress";
+import { refreshAchievements, streakOf, todaysChallenges, todaysProgression } from "../../lib/progress";
 import { go } from "../../lib/router";
 
 export function planHref(it: PlanItem): string {
@@ -25,6 +26,13 @@ export function Challenges() {
   const [ch, setCh] = useState<Challenge[]>([]);
   const [ach, setAch] = useState<Achievement[]>([]);
   const [streak, setStreak] = useState(0);
+  const [prog, setProg] = useState<Progression | null>(null);
+  const [report, setReport] = useState<CoachAnswer | "busy" | null>(null);
+  const analyse = async () => {
+    setReport("busy");
+    try { setReport(await summarize(await progressFacts(), "progress")); }
+    catch (e) { setReport({ text: "", error: (e as Error).message }); }
+  };
   const [err, setErr] = useState("");
   useEffect(() => {
     (async () => {
@@ -33,6 +41,7 @@ export function Challenges() {
       const [w, cards] = await Promise.all([store.getWeakness(), db.puzzleProgress.toArray()]);
       const dp = await py.daily_plan(p, w, cards, today());
       setPlan(dp.items);
+      setProg(await todaysProgression());
       setCh(await todaysChallenges());
       setAch((await db.achievements.toArray()).sort((a, b) => String(b.date ?? "").localeCompare(String(a.date ?? ""))));
       setStreak(streakOf((p.activity as string[] | undefined) ?? []));
@@ -45,6 +54,35 @@ export function Challenges() {
         <strong className="big" data-testid="streak">{streak}</strong>
         <div><b>day{streak === 1 ? "" : "s"} in a row</b><p className="muted small">Train or play every day to keep it going.</p></div>
       </section>
+      {prog ? (
+        <section className="card level-card" aria-label="Today's level" data-testid="todays-level">
+          <div className="level-top">
+            <div>
+              <small className="muted">Today's level · Day {prog.tier}</small>
+              <strong className="big">~{prog.base_rating + prog.offset}</strong>
+            </div>
+            <span className={"level-step" + (prog.step > 0 ? " up" : prog.step < 0 ? " down" : "")}>
+              {prog.step > 0 ? `▲ +${prog.step}` : prog.step < 0 ? `▼ ${prog.step}` : "● steady"}
+            </span>
+          </div>
+          <p className="small">Bobby plays at about {prog.base_rating + prog.offset} today. Targets: <b>{prog.accuracy_target}% accuracy</b>, <b>{prog.blunder_cap ? `at most ${prog.blunder_cap} blunder${prog.blunder_cap === 1 ? "" : "s"}` : "no blunders"}</b>.</p>
+          <ul className="level-why">{prog.reasons.map((r) => <li key={r} className="small muted">{r}</li>)}</ul>
+          <div className="coach-report">
+            {report && report !== "busy" ? (
+              <div className="msg bobby summary" data-testid="progress-report">
+                {report.text ? <p>{report.text}</p> : null}
+                {report.error ? <p className="err small">{report.error}</p> : null}
+              </div>
+            ) : (
+              <button className="summary-cta" onClick={() => void analyse()} disabled={report === "busy"}>
+                <span className="summary-ico" aria-hidden="true">✦</span>
+                <span><strong>{report === "busy" ? "Bobby is reading your games…" : "Analyze my recent games"}</strong>
+                  <small>How you are doing, what holds you back, and the habit to build. In plain words.</small></span>
+              </button>
+            )}
+          </div>
+        </section>
+      ) : null}
       <section>
         <h2 className="sub-h">Today's plan</h2>
         {plan ? <ol className="plan">{plan.map((it, i) => (

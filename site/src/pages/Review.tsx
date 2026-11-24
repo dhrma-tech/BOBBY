@@ -12,9 +12,11 @@ import { runPipeline, type PipelineProgress } from "../lib/pipeline";
 import { commands } from "../lib/commands";
 import { go } from "../lib/router";
 import { useSettings } from "../lib/useSettings";
-import { CoachDrawer, PersonaBadge } from "../components/CoachDrawer";
+import { CoachDrawer } from "../components/CoachDrawer";
 import { useOpeningName } from "../components/OpeningName";
-import { explain, moveFacts, type CoachAnswer } from "../lib/coach";
+import { useSideWidths } from "../lib/useSideWidths";
+import { explainMove, practiceLinks, type CoachAnswer } from "../lib/coach";
+import { useCoachBoard } from "../lib/useCoachBoard";
 
 interface Line { e: Eval; san: string[]; first: string }
 
@@ -34,7 +36,7 @@ export function Review({ id }: { id: string }) {
   const [lines, setLines] = useState<{ fen: string; lines: Line[] } | null>(null);
   const [flipped, setFlipped] = useState(false);
   const [err, setErr] = useState("");
-  const [coach, setCoach] = useState(false);
+  const sides = useSideWidths();
   const [expl, setExpl] = useState<{ key: string; a: CoachAnswer | null } | null>(null);
 
   useEffect(() => {
@@ -63,6 +65,7 @@ export function Review({ id }: { id: string }) {
   const n = main?.ucis.length ?? 0;
   const baseFen = useMemo(() => (main ? replay(main.start, main.ucis.slice(0, ply)).fen() : ""), [main, ply]);
   const fen = useMemo(() => (branch.length ? replay(baseFen, branch).fen() : baseFen), [baseFen, branch]);
+  const cb = useCoachBoard(fen);
   const jump = useCallback((p: number) => { setPly(Math.max(0, Math.min(n, p))); setBranch([]); }, [n]);
 
   // multi-PV for the shown position
@@ -97,18 +100,19 @@ export function Review({ id }: { id: string }) {
   }, [jump, ply, n, branch.length]);
 
   const opening = useOpeningName(main?.start ?? "", main ? main.ucis.slice(0, ply) : []);
-  const explainMove = async (p: number) => {
-    const mv = an?.game.moves[p - 1];
-    if (!mv) return;
-    const key = `${id}:${p}:${s.persona}:${s.customCoach}`;
+  // Every move is explained automatically (rule-based, instant): what it did, what it allowed, what was better.
+  const explKey = `${id}:${ply}`;
+  useEffect(() => {
+    if (!an || ply < 1 || branch.length) return;
+    const key = `${id}:${ply}`;
     setExpl({ key, a: null });
-    const cls = an?.classification.moves.find((m) => m.ply === p)?.class;
-    try {
-      const a = await explain(await moveFacts(mv, cls), "move_explain");
-      setExpl((e) => (e?.key === key ? { key, a } : e));
-    } catch (x) { setExpl((e) => (e?.key === key ? { key, a: { text: "", source: "template", error: (x as Error).message } } : e)); }
-  };
-  const explKey = `${id}:${ply}:${s.persona}:${s.customCoach}`;
+    const cls = an.classification.moves.find((m) => m.ply === ply)?.class;
+    explainMove(an.game, ply, cls)
+      .then((a) => setExpl((e) => (e?.key === key ? { key, a } : e)))
+      .catch((x) => setExpl((e) => (e?.key === key ? { key, a: { text: "", error: (x as Error).message } } : e)));
+  }, [an, id, ply, branch.length]);
+  // Draw the explanation's arrows once it arrives (the coach board clears them again when the position changes).
+  useEffect(() => { if (expl?.key === explKey && expl.a?.viz) cb.setViz(expl.a.viz); }, [expl, explKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (game === undefined) return <div className="loading">Loading game…</div>;
   if (game === null) return <div className="page empty"><h2>Game not found</h2><p>It may have been deleted. <a href="#/">Back to Play</a></p></div>;
@@ -129,13 +133,16 @@ export function Review({ id }: { id: string }) {
   const youAre = game.mode === "bot" ? game.playerColor : null;
 
   return (
-    <div className="play review">
+    <div className="play arena review with-coach" style={sides.style}>
+      <div {...sides.handle("panel")} />
+      <div {...sides.handle("coach")} />
       <div className="play-board">
         <div className="board-row">
           <EvalBar ev={shownEval} orientation={flipped ? "black" : "white"} />
-          <Board fen={fen} orientation={flipped ? "black" : "white"} movable="both" lastMove={lastU ? [lastU.slice(0, 2), lastU.slice(2, 4)] : null}
+          <Board fen={cb.board.fen} orientation={flipped ? "black" : "white"} movable={cb.play ? "none" : "both"} lastMove={cb.board.lastMove ?? (lastU ? [lastU.slice(0, 2), lastU.slice(2, 4)] : null)}
             onMove={(f, t, pr) => { const c = new Chess(fen); const m = tryMove(c, f, t, pr); if (!m) return false; setBranch((b) => [...b, uciOf(m)]); return true; }}
-            arrows={lines?.fen === fen && lines.lines[0] ? [[lines.lines[0].first.slice(0, 2), lines.lines[0].first.slice(2, 4), "rgba(31,107,87,.7)"]] : []}
+            arrows={cb.play ? [] : cb.board.arrows.length ? cb.board.arrows : lines?.fen === fen && lines.lines[0] ? [[lines.lines[0].first.slice(0, 2), lines.lines[0].first.slice(2, 4), "rgba(31,107,87,.7)"]] : []}
+            marks={cb.board.marks}
             theme={s.boardTheme} pieceSet={s.pieceSet} coordinates={s.coordinates} legalHighlights={s.legalHighlights} label="Analysis board" />
         </div>
         <div className="navrow" role="group" aria-label="Move navigation">
@@ -148,7 +155,7 @@ export function Review({ id }: { id: string }) {
       </div>
 
       <aside className="panel" aria-label="Review panel">
-        <div className="panel-top"><h1 className="panel-h">Game review</h1><PersonaBadge /></div>
+        <h1 className="panel-h">Game review</h1>
         {opening ? <p className="opening-name small" data-testid="opening-name"><strong>{opening.eco}</strong> {opening.name}</p> : null}
         <p className="muted small">{game.mode === "bot" ? `vs Bobby ~${game.botRating ?? "?"}` : "Two-player or imported game"} · {game.result} {game.termination ? `(${game.termination})` : ""}</p>
 
@@ -184,12 +191,14 @@ export function Review({ id }: { id: string }) {
         ) : null}
         {cur && !branch.length ? (
           <div className="explain">
-            {expl?.key === explKey ? (expl.a ? <>
-              {expl.a.text ? <p className="hint coach-say" data-testid="explain-text" data-source={expl.a.source}>{expl.a.text}</p> : null}
+            {expl?.key === explKey && expl.a ? <>
+              {expl.a.text ? <p className="hint coach-say" data-testid="explain-text">{expl.a.text}</p> : null}
               {expl.a.error ? <p className="err small">{expl.a.error}</p> : null}
-            </> : <p className="muted small think">Bobby is explaining…</p>) : (
-              <button className="btn" onClick={() => void explainMove(ply)} data-testid="explain-btn">Explain {main?.sans[ply - 1]}</button>
-            )}
+              <div className="msg-f">
+                {expl.a.viz?.line ? <button className="textlink" onClick={() => cb.showLine(expl.a?.viz?.line)} data-testid="show-me">Show the better line ▶</button> : null}
+                {practiceLinks(expl.a.tags).map((l) => <button key={l.href} className="textlink" onClick={() => go(l.href)}>{l.label}</button>)}
+              </div>
+            </> : <p className="muted small think">Bobby is looking at this move…</p>}
           </div>
         ) : null}
 
@@ -201,9 +210,9 @@ export function Review({ id }: { id: string }) {
         </div>
 
         <MoveList sans={main?.sans ?? []} current={ply} onJump={jump} classes={classes} />
-        <div className="btnrow"><button className="btn" onClick={() => setCoach(true)}>Ask Bobby</button><a className="btn" href="#/">Back to Play</a></div>
+        <a className="btn btn-soft btn-wide" href="#/">Back to Play</a>
       </aside>
-      {coach ? <CoachDrawer fen={fen} context={{ page: "review", opening: opening?.name ?? null, move_number: ply, played: main?.sans[ply - 1] ?? null, class: curClass ?? null }} onClose={() => setCoach(false)} /> : null}
+      <CoachDrawer fen={fen} board={cb} summary={{ gameId: id, pending: !an }} />
     </div>
   );
 }

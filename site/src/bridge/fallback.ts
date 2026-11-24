@@ -2,9 +2,7 @@
 // (py/bobby/api.py) is not loadable yet or lacks a function. Python is the source of truth; these exist so the
 // UI can be developed and smoke-tested in parallel. Every use logs a warning once.
 import { Chess } from "chess.js";
-import type {
-  AnalyzedGame, Classification, ClassifyInputMove, Color, Eval, GameResultInput, Level, MoveClass, ParsedPgn, Persona, Profile, Puzzle, Result,
-} from "./types";
+import type { AnalyzedGame, Classification, ClassifyInputMove, Color, Eval, GameResultInput, Level, MoveClass, ParsedPgn, Profile, Puzzle, Result } from "./types";
 
 const LEVEL_RATING: Record<Level, number> = { never: 400, moves: 700, basic: 1000, casual: 1100, club: 1400 };
 
@@ -72,12 +70,6 @@ function puzzles_from_mistakes(g: AnalyzedGame): Puzzle[] {
     .map((m) => ({ id: `${g.id}-${m.ply}`, fen: m.fen_before, solution: [m.best_uci as string], themes: [], source: "mistake", rating: 1000 }));
 }
 
-const PERSONAS: Persona[] = [
-  { id: "closer", name: "The Closer", tagline: "Sharp and confident.", style: "", voice: { rate: 1.05, pitch: 0.9, preferGender: "male" } },
-  { id: "prodigy", name: "The Prodigy", tagline: "Precise and encouraging.", style: "", voice: { rate: 1.1, pitch: 1.1, preferGender: "female" } },
-  { id: "observer", name: "The Observer", tagline: "Observant and theatrical.", style: "", voice: { rate: 0.95, pitch: 1, preferGender: "male" } },
-  { id: "visionary", name: "The Visionary", tagline: "Blunt, first principles.", style: "", voice: { rate: 1.15, pitch: 0.95, preferGender: "male" } },
-];
 
 export const fallback: Record<string, (...a: never[]) => unknown> = {
   winprob,
@@ -91,7 +83,6 @@ export const fallback: Record<string, (...a: never[]) => unknown> = {
   generate_challenges: () => [],
   update_challenges: (c: unknown) => c ?? [],
   check_achievements: () => [],
-  personas: () => PERSONAS,
   template_explanation: (facts: { class?: string; move?: string }) => `${facts.move ?? "This move"} was classified as ${facts.class ?? "unknown"}.`,
   export_all: (data: unknown) => ({ version: 1, data }),
   import_all: (blob: { version?: number; data?: unknown }) => {

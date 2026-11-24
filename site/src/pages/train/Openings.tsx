@@ -7,11 +7,13 @@ import { openingEntries, loadOpenings, openingFor, type OpeningEntry } from "../
 import type { Opening } from "../../lib/data";
 import { replay, START_FEN, tryMove, uciOf } from "../../lib/chess";
 import { useSettings } from "../../lib/useSettings";
+import { useRoute } from "../../lib/router";
 
 export function Openings() {
   const s = useSettings();
   const [entries, setEntries] = useState<OpeningEntry[] | null>(null);
   const [map, setMap] = useState<Map<string, Opening> | null>(null);
+  const route = useRoute();
   const [line, setLine] = useState<string[]>([]);
   const [q, setQ] = useState("");
   const [games, setGames] = useState<GameRow[]>([]);
@@ -74,6 +76,9 @@ export function Openings() {
     if (!m) return false; setLine([...line, uciOf(m)]); return true;
   };
   const loadByName = (nm: string) => { const e = entries?.find((x) => x.name === nm); if (e) setLine(e.ucis); };
+  // Deep link from the top search bar: #/train?tab=openings&open=<opening name>
+  const openParam = route.q.get("open");
+  useEffect(() => { if (entries && openParam) { const e = entries.find((x) => x.name === openParam); if (e) setLine(e.ucis); } }, [entries, openParam]);
 
   if (err) return <p className="err">Could not load openings: {err}</p>;
   return (

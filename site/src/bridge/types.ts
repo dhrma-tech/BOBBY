@@ -33,7 +33,6 @@ export interface PlanItem { kind: string; ref: string; title: string; minutes: n
 export interface Challenge { id: string; title: string; description: string; kind: string; target: number; progress: number; reward: unknown; [k: string]: unknown }
 export interface Achievement { id: string; [k: string]: unknown }
 export interface LessonCheck { correct: boolean; feedback: string; next_index: number | null }
-export interface Persona { id: string; name: string; tagline: string; style: string; voice: { rate: number; pitch: number; preferGender: string } }
 export interface BenchmarkRow { metric: string; label?: string; you: number; typical: number; note: string }
 export interface StatsSummary {
   rating_curve: { date: string; rating: number; rd: number | null; game_id: string }[];
@@ -43,7 +42,20 @@ export interface StatsSummary {
   opening_results: { eco: string; name: string | null; n: number; w: number; d: number; l: number; score: number }[];
   weakness_heatmap: Record<string, { opening: number; middle: number; end: number; total: number }>;
 }
-export type CoachMode = "move_explain" | "review" | "chat" | "hint";
+export type CoachMode = "review" | "progress";
+
+/** Board drawing that comes with a coach answer (py/bobby/explain.py). */
+export interface Viz {
+  arrows: [string, string, "best" | "threat" | "played"][];
+  squares: Record<string, "danger" | "warn" | "good">;
+  line: { fen: string; moves: string[] } | null;
+}
+
+/** Today's level (py/bobby/progression.py): a daily stretch on top of the rating, plus challenge targets. */
+export interface Progression {
+  version: number; date: string; offset: number; step: number; tier: number; accuracy_target: number; blunder_cap: number;
+  base_rating: number; reasons: string[]; form: Record<string, unknown>;
+}
 
 /** The game record TS builds after engine analysis and hands to Python functions taking `analyzed_game`. */
 /** Matches the Python `analyzed_game` doc in py/bobby/analysis.py: {player_color, moves, classification?, headers?, date?, result?, player_rating?}. */

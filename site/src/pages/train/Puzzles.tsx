@@ -9,6 +9,7 @@ import { data } from "../../lib/data";
 import { today } from "../../lib/chess";
 import { markActivity } from "../../lib/progress";
 import { useRoute, go } from "../../lib/router";
+import { Select } from "../../components/Select";
 
 export const THEMES: [string, string][] = [
   ["", "Mixed"], ["mateIn1", "Mate in 1"], ["mateIn2", "Mate in 2"], ["mateIn3", "Mate in 3"], ["fork", "Fork"], ["pin", "Pin"], ["skewer", "Skewer"],
@@ -67,8 +68,8 @@ export function Puzzles() {
       </div>
       {mode === "mine" ? <MinePuzzles onChange={refresh} counts={counts} /> : (
         <>
-          <label className="inline-l">Theme <select value={theme} onChange={(e) => nav({ theme: e.target.value })} aria-label="Puzzle theme">
-            {THEMES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></label>
+          <label className="inline-l">Theme <Select value={theme} onChange={(e) => nav({ theme: e.target.value })} aria-label="Puzzle theme">
+            {THEMES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</Select></label>
           <ThemedPuzzles theme={theme || null} key={theme} />
         </>
       )}

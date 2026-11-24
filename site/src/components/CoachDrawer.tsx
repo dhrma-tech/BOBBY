@@ -1,80 +1,145 @@
-// "Ask Bobby" side drawer: chat about the current position. Facts come from the engine; the LLM (or template) explains.
+// "Ask Bobby": a rule-based coach (no AI). Five questions about the position, a post-game summary and a progress
+// report. Answers come from the engine + tactic detectors, in plain words, and can draw on the board.
 import { useEffect, useRef, useState } from "react";
-import { explain, loadPersonas, positionFacts, type CoachAnswer } from "../lib/coach";
+import { askPosition, gameSummaryFacts, practiceLinks, progressFacts, QUESTIONS, summarize, type CoachAnswer, type QuestionId } from "../lib/coach";
+import type { CoachBoard } from "../lib/useCoachBoard";
 import { speak, stopSpeaking } from "../lib/tts";
-import { useSettings } from "../lib/useSettings";
-import type { Persona } from "../bridge/types";
+import { go } from "../lib/router";
 
-interface Msg { role: "you" | "bobby"; text: string; source?: CoachAnswer["source"]; error?: string }
+interface Msg { id: number; role: "you" | "bobby"; text: string; answer?: CoachAnswer; summary?: boolean }
 
-const QUICK = ["What is the plan here?", "What is the engine's best move and why?", "Who is better?"];
+const Spark = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M12 3l1.8 4.9L18.7 9.7 13.8 11.5 12 16.4 10.2 11.5 5.3 9.7l4.9-1.8z" /><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z" />
+  </svg>
+);
+const Chart = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="M5 20V11M12 20V5M19 20v-7" /></svg>
+);
 
-export function usePersonas() {
-  const [list, setList] = useState<Persona[]>([]);
-  useEffect(() => { let live = true; loadPersonas().then((l) => live && setList(l)).catch(() => {}); return () => { live = false; }; }, []);
-  return list;
+/** Slim right-hand rail shown while the coach card is closed. */
+export function CoachRail({ onOpen }: { onOpen: () => void }) {
+  return (
+    <aside className="rail coach-rail" aria-label="Ask Bobby (closed)">
+      <button className="rail-btn accent" onClick={onOpen} aria-label="Open Ask Bobby" title="Open Ask Bobby"><Spark /></button>
+    </aside>
+  );
 }
 
-export function PersonaBadge() {
-  const s = useSettings();
-  const list = usePersonas();
-  const p = list.find((x) => x.id === s.persona);
-  const name = s.persona === "custom" ? "Custom coach" : p?.name ?? s.persona;
-  return <span className="persona-badge" title={p?.tagline ?? ""}><span className={"pglyph pg-" + s.persona} aria-hidden="true">{name.replace(/^The /, "")[0]}</span>{name}</span>;
+/** "Show me" player for a line drawn on the board. */
+function LineControls({ cb }: { cb: CoachBoard }) {
+  const p = cb.play;
+  if (!p) return null;
+  return (
+    <div className="line-play" role="group" aria-label="Showing a line on the board">
+      <button className="chip" onClick={() => cb.step(-1)} disabled={p.i === 0} aria-label="Previous move">‹</button>
+      <span className="line-sans">{p.sans.map((s, i) => <b key={i} className={i === p.i - 1 ? "on" : i < p.i ? "done" : ""}>{s}</b>)}</span>
+      <button className="chip" onClick={() => cb.step(1)} disabled={p.i >= p.fens.length - 1} aria-label="Next move">›</button>
+      <button className="chip" onClick={cb.stop}>Back to game</button>
+    </div>
+  );
 }
 
-export function CoachDrawer({ fen, context, onClose }: { fen: string; context?: Record<string, unknown>; onClose: () => void }) {
-  const s = useSettings();
-  const personas = usePersonas();
+/**
+ * Permanent coach card (right column of Play and Review). `locked` shows a placeholder instead, e.g. in focus mode.
+ * `summary` adds "Summarize my game" once a finished game has been analysed (`pending` while the analysis runs).
+ * `board` lets answers draw arrows on the page's board and play lines through ("Show me").
+ */
+export function CoachDrawer({ fen, locked, summary, onClose, hidden, board }: {
+  fen: string; locked?: string; summary?: { gameId: string; pending?: boolean } | null;
+  /** When given, the header shows a close button (Play uses this during a game). */
+  onClose?: () => void;
+  /** Kept mounted while hidden so the conversation survives closing and reopening. */
+  hidden?: boolean;
+  board?: CoachBoard;
+}) {
   const [msgs, setMsgs] = useState<Msg[]>([]);
-  const [q, setQ] = useState("");
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState<false | "position" | "summary">(false);
+  const [summarised, setSummarised] = useState<string | null>(null);
+  const [shown, setShown] = useState<number | null>(null);
   const list = useRef<HTMLDivElement>(null);
-  const input = useRef<HTMLInputElement>(null);
-  useEffect(() => { input.current?.focus(); const k = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); }; addEventListener("keydown", k); return () => { removeEventListener("keydown", k); stopSpeaking(); }; }, [onClose]);
-  useEffect(() => { list.current?.scrollTo({ top: list.current.scrollHeight }); }, [msgs, busy]);
-  const hasLlm = s.llm.provider === "custom" ? !!s.llm.baseUrl.trim() : !!s.llm.key.trim();
+  const nextId = useRef(1);
+  useEffect(() => () => stopSpeaking(), []);
+  useEffect(() => { list.current?.scrollTo({ top: list.current.scrollHeight, behavior: "smooth" }); }, [msgs, busy]);
+  useEffect(() => { setShown(null); }, [fen]);
 
-  const ask = async (question: string) => {
-    const text = question.trim();
-    if (!text || busy) return;
-    setMsgs((m) => [...m, { role: "you", text }]); setQ(""); setBusy(true);
-    try {
-      const facts = await positionFacts(fen, text, context);
-      const a = await explain(facts, "chat");
-      setMsgs((m) => [...m, { role: "bobby", text: a.text, source: a.source, error: a.error }]);
-    } catch (e) {
-      setMsgs((m) => [...m, { role: "bobby", text: "", error: (e as Error).message }]);
-    } finally { setBusy(false); }
+  const run = async (label: string, kind: "position" | "summary", get: () => Promise<CoachAnswer>, isSummary = false) => {
+    if (busy) return;
+    const qid = nextId.current++;
+    setMsgs((m) => [...m, { id: qid, role: "you", text: label }]); setBusy(kind);
+    let a: CoachAnswer;
+    try { a = await get(); } catch (e) { a = { text: "", error: (e as Error).message }; }
+    const id = nextId.current++;
+    setMsgs((m) => [...m, { id, role: "bobby", text: a.text, answer: a, summary: isSummary }]);
+    if (a.viz && board) { board.setViz(a.viz); setShown(id); }
+    setBusy(false);
   };
+  const ask = (q: (typeof QUESTIONS)[number]) => void run(q.label, "position", () => askPosition(fen, q.id as QuestionId));
+  const summarizeGame = () => {
+    if (!summary || summary.pending) return;
+    void run("Summarize my game", "summary", async () => {
+      const facts = await gameSummaryFacts(summary.gameId);
+      if (!facts) throw new Error("This game has not been analysed yet.");
+      const a = await summarize(facts, "review");
+      setSummarised(summary.gameId);
+      return a;
+    }, true);
+  };
+  const improving = () => void run("How am I improving?", "summary", async () => summarize(await progressFacts(), "progress"), true);
+  const fresh = summary && summarised !== summary.gameId;
 
   return (
-    <aside className="drawer" role="dialog" aria-label="Ask Bobby" aria-modal="false">
+    <aside className={"drawer coach-card" + (locked ? " locked" : "")} aria-label="Ask Bobby" hidden={hidden}>
       <div className="drawer-h">
-        <h2>Ask Bobby</h2>
-        <PersonaBadge />
-        <button className="icon-btn" onClick={onClose} aria-label="Close coach">×</button>
+        <span className="coach-mark" aria-hidden="true"><Spark /></span><h2>Ask Bobby</h2>
+        {onClose ? <button className="icon-btn coach-x" onClick={onClose} aria-label="Close Ask Bobby" title="Close (reopens after the game)">×</button> : null}
       </div>
-      <p className="muted small">{hasLlm ? `Answers from ${s.llm.provider} (${s.llm.model}), grounded in engine facts only.` : "No API key: answers are templates built from engine facts. Add a key in Settings for free-form answers."}</p>
+      {locked ? (
+        <div className="coach-locked" data-testid="coach-locked">
+          <span className="coach-lock-ico" aria-hidden="true"><Spark /></span>
+          <p><strong>Coach is resting</strong></p>
+          <p className="muted small">{locked}</p>
+        </div>
+      ) : <>
       <div className="chat" ref={list} aria-live="polite">
-        {!msgs.length ? <p className="muted small">Ask about the position on the board. Bobby only explains what the engine reports.</p> : null}
-        {msgs.map((m, i) => (
-          <div key={i} className={"msg " + m.role} data-source={m.source}>
-            {m.text ? <p>{m.text}</p> : null}
-            {m.error ? <p className="err small">{m.error}{m.text ? " (showing the template answer instead)" : ""}</p> : null}
-            {m.role === "bobby" && m.text ? (
-              <div className="msg-f"><small className="muted">{m.source === "llm" ? "LLM" : m.source === "cache" ? "LLM (cached)" : "template"}</small>
-                <button className="textlink" onClick={() => speak(m.text, s.persona, personas.find((p) => p.id === s.persona), true)}>Speak</button></div>
-            ) : null}
-          </div>
-        ))}
-        {busy ? <p className="muted small think">Bobby is looking at the position…</p> : null}
+        {fresh ? (
+          <button className="summary-cta" onClick={summarizeGame} disabled={!!summary.pending || !!busy} data-testid="summary-btn">
+            <span className="summary-ico"><Chart /></span>
+            <span><strong>{summary.pending ? "Analysing your game…" : "Summarize my game"}</strong>
+              <small>Your stats, where you slipped, and what to work on. In plain words.</small></span>
+          </button>
+        ) : null}
+        {!msgs.length && !fresh ? <p className="muted small coach-intro">Pick a question below. Bobby checks the position with the engine and explains it in plain words, with arrows on the board.</p> : null}
+        {msgs.map((m) => {
+          const a = m.answer;
+          const links = practiceLinks(a?.tags);
+          const drawable = !!a?.viz && !!board && (a.viz.arrows.length > 0 || Object.keys(a.viz.squares).length > 0);
+          return (
+            <div key={m.id} className={"msg " + m.role + (m.summary ? " summary" : "") + (shown === m.id ? " shown" : "")}>
+              {m.text ? <p>{m.text}</p> : null}
+              {a?.error ? <p className="err small">{a.error}</p> : null}
+              {m.role === "bobby" && (drawable || links.length || m.text) ? (
+                <div className="msg-f">
+                  {drawable ? (
+                    <button className="textlink" onClick={() => { board?.stop(); board?.setViz(a?.viz ?? null); setShown(m.id); }}>{shown === m.id ? "On the board" : "Show on board"}</button>
+                  ) : null}
+                  {a?.viz?.line && board ? <button className="textlink" onClick={() => board.showLine(a.viz?.line)} data-testid="show-me">Show me ▶</button> : null}
+                  {links.map((l) => <button key={l.href} className="textlink" onClick={() => go(l.href)}>{l.label}</button>)}
+                  {m.text ? <button className="textlink" onClick={() => speak(m.text, true)}>Speak</button> : null}
+                </div>
+              ) : null}
+            </div>
+          );
+        })}
+        {busy ? <p className="muted small think">{busy === "summary" ? "Bobby is going through your games…" : "Bobby is checking the position…"}</p> : null}
       </div>
-      <div className="quick">{QUICK.map((x) => <button key={x} className="chip" disabled={busy} onClick={() => void ask(x)}>{x}</button>)}</div>
-      <form className="typed" onSubmit={(e) => { e.preventDefault(); void ask(q); }}>
-        <label className="sr-only" htmlFor="coach-q">Question</label>
-        <input id="coach-q" ref={input} value={q} onChange={(e) => setQ(e.target.value)} placeholder="Ask about this position" autoComplete="off" />
-      </form>
+      {board ? <LineControls cb={board} /> : null}
+      <div className="questions" role="group" aria-label="Questions">
+        {QUESTIONS.map((q) => <button key={q.id} className="qbtn" disabled={!!busy} onClick={() => ask(q)}>{q.label}</button>)}
+        {summary && !fresh ? <button className="qbtn accent" disabled={!!busy} onClick={summarizeGame}>Summarize my game</button> : null}
+        <button className="qbtn accent" disabled={!!busy} onClick={improving}>How am I improving?</button>
+      </div>
+      </>}
     </aside>
   );
 }

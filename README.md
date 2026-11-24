@@ -6,7 +6,9 @@ Bobby is an open-source, single-user AI chess learning web app. It plays you at 
 
 - **Play**: versus Bobby at adaptive strength, or pass-and-play on one screen. Time controls, takebacks, three-level hints, PGN and FEN import and export.
 - **Learn from scratch**: interactive lessons on the board (piece moves, special moves, check and mate, basic mates, tactics, opening principles, endgames).
-- **Coach**: move-by-move explanations built from engine facts and short vetted knowledge cards. Works offline with templates; optionally plug in your own LLM key. Personas change tone only, never the analysis.
+- **Coach (no AI)**: plain-language explanations built from engine facts and tactic detectors, with arrows on the board. Every move in a review is explained (what it did, what it allowed, what was better), "Show me" plays the better line, and five questions work on any position: threats, pieces in danger, best move and why, who is better and why, and the plan. Answers link to the matching lesson or puzzles. Works fully offline, no keys.
+- **Safety net**: optional check before you play a move that hangs a piece or allows mate in one.
+- **Daily progression**: Bobby steps up or eases off each day from your recent games, and challenge targets follow your form.
 - **Review**: accuracy, move classes (best to blunder), key moments, and phase breakdown for every game.
 - **Train**: puzzles from your own mistakes with spaced repetition, themed puzzle sets, endgame trainer with tablebase-verified goals, opening explorer, daily challenges and achievements.
 - **Stats**: rating curve, accuracy trend, weakness heatmap, and benchmarks that show how your play compares with players in your rating band.

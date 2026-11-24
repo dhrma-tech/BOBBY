@@ -17,8 +17,13 @@ import { commands } from "../lib/commands";
 import { go } from "../lib/router";
 import { play as sound } from "../lib/sounds";
 import { useSettings } from "../lib/useSettings";
-import { CoachDrawer } from "../components/CoachDrawer";
+import { CoachDrawer, CoachRail } from "../components/CoachDrawer";
 import { useOpeningName } from "../components/OpeningName";
+import { todaysProgression } from "../lib/progress";
+import { useSideWidths } from "../lib/useSideWidths";
+import { useCoachBoard } from "../lib/useCoachBoard";
+import { safetyCheck, type SafetyWarning } from "../lib/safety";
+import { Select } from "../components/Select";
 
 const FIXED_STRENGTHS = [400, 700, 1000, 1300, 1600, 2000, 2400];
 
@@ -40,7 +45,6 @@ export function Play() {
   const [moveText, setMoveText] = useState("");
   const [announce, setAnnounce] = useState("");
   const [now, setNow] = useState(() => Date.now());
-  const [coach, setCoach] = useState(false);
   const turnStart = useRef(Date.now());
 
   // ---------- load or create ----------
@@ -60,6 +64,7 @@ export function Play() {
   const fenAt = useCallback((ply: number) => (ply === 0 || !g ? (g?.startFen ?? START_FEN) : replay(g.startFen, g.moves.slice(0, ply)).fen()), [g]);
   const viewing = view !== null && g !== null && view < g.moves.length;
   const fen = viewing ? fenAt(view) : chess.fen();
+  const cb = useCoachBoard(fen);
   const over = !!g && g.result !== "*";
   const turn = chess.turn();
   const botTurn = !!g && g.mode === "bot" && !over && turn !== g.playerColor;
@@ -116,12 +121,18 @@ export function Play() {
     return next;
   }, [end, autoFlip]);
 
+  // Safety net: a move that hangs a piece or allows mate in one waits for confirmation instead of being played.
+  const [risky, setRisky] = useState<{ uci: string; warn: SafetyWarning } | null>(null);
   const onMove = useCallback((from: string, to: string, promotion?: string) => {
     if (!g || over || viewing || botTurn) return false;
+    if (settings.get().safetyNet) {
+      const warn = safetyCheck(chess.fen(), from, to, promotion);
+      if (warn) { setRisky({ uci: from + to + (promotion ?? ""), warn }); return false; }
+    }
     const ok = commit(g, from + to + (promotion ?? ""));
     if (!ok && settings.get().sounds) sound("illegal");
     return !!ok;
-  }, [g, over, viewing, botTurn, commit]);
+  }, [g, over, viewing, botTurn, commit, chess]);
 
   // Bobby's move
   const gRef = useRef(g);
@@ -145,8 +156,16 @@ export function Play() {
 
   // live eval and coach: hidden in focus mode (default ON) until the game ends
   const focused = s.focusMode && !over && !!g;
+  // While a game is in progress the side panels get out of the way: the left panel collapses to a slim rail of
+  // controls and the coach card can be closed. Both come back on their own when the game ends.
+  const inGame = !!g && !over && g.moves.length > 0;
+  const [panelPref, setPanelPref] = useState<boolean | null>(null);
+  const [coachPref, setCoachPref] = useState<boolean | null>(null);
+  useEffect(() => { setPanelPref(null); setCoachPref(null); }, [inGame]);
+  const panelOpen = panelPref ?? !inGame;
+  const coachOpen = coachPref ?? true;
+  const sides = useSideWidths();
   const showEval = s.showEval && !focused;
-  useEffect(() => { if (focused) setCoach(false); }, [focused]);
   const opening = useOpeningName(g?.startFen ?? START_FEN, viewing ? g!.moves.slice(0, view!) : g?.moves ?? []);
   useEffect(() => {
     if (!showEval) return;
@@ -244,7 +263,7 @@ export function Play() {
       { id: "copyfen", label: "Copy FEN", hint: "Play", run: () => copy(fen, "FEN") },
       { id: "copypgn", label: "Copy PGN", hint: "Play", run: () => g && copy(pgnOf(g), "PGN") },
       { id: "focus", label: s.focusMode ? "Focus mode: off (show eval and coach)" : "Focus mode: on (hide eval and coach)", hint: "Play", run: () => settings.set({ focusMode: !s.focusMode }) },
-      { id: "coach", label: "Ask Bobby about this position", hint: "Coach", run: () => { if (!(s.focusMode && g?.result === "*")) setCoach(true); else toast("Focus mode is on: the coach returns when the game ends."); } },
+      { id: "coach", label: "Ask Bobby about this position", hint: "Coach", run: () => { if (!(s.focusMode && g?.result === "*")) document.getElementById("coach-q")?.focus(); else toast("Focus mode is on: the coach returns when the game ends."); } },
     ]);
     const k = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement;
@@ -276,21 +295,39 @@ export function Play() {
   );
 
   return (
-    <div className="play">
+    <div className={"play arena with-coach" + (panelOpen ? "" : " panel-min") + (coachOpen ? "" : " coach-min")} style={sides.style}>
+      {panelOpen ? <div {...sides.handle("panel")} /> : null}
+      {coachOpen ? <div {...sides.handle("coach")} /> : null}
       <div className="play-board">
         <PlayerBar c={top} />
         <div className="board-row">
           {showEval ? <EvalBar ev={ev?.fen === fen ? ev.e : null} orientation={orientation} /> : null}
-          <Board fen={fen} orientation={orientation} movable={movable} onMove={onMove} lastMove={lastMove}
+          <Board fen={cb.board.fen} orientation={orientation} movable={cb.play ? "none" : movable} onMove={onMove} lastMove={cb.board.lastMove ?? lastMove}
             highlight={hint && hint.fen === fen ? hint.from ?? null : null}
-            arrows={hint && hint.fen === fen && hint.from && hint.to ? [[hint.from, hint.to]] : []}
+            arrows={risky ? [[risky.warn.arrow?.[0] ?? "", risky.warn.arrow?.[1] ?? "", "rgba(214,58,58,.9)"] as [string, string, string]].filter((a) => a[0])
+              : hint && hint.fen === fen && hint.from && hint.to ? [[hint.from, hint.to]] : cb.board.arrows}
+            marks={risky ? Object.fromEntries(risky.warn.squares.map((q) => [q, "rgba(220,60,60,.5)"])) : cb.board.marks}
             theme={s.boardTheme} pieceSet={s.pieceSet} coordinates={s.coordinates} legalHighlights={s.legalHighlights} label={`Chess board, ${turn === "w" ? "white" : "black"} to move`} />
         </div>
         <PlayerBar c={top === "w" ? "b" : "w"} />
         <p className="sr-only" aria-live="polite">{announce}</p>
       </div>
 
-      <aside className="panel" aria-label="Game panel">
+      {!panelOpen ? (
+        <aside className="rail" aria-label="Game controls">
+          <button className="rail-btn" onClick={() => setPanelPref(true)} aria-label="Show game panel" title="Show game panel"><Ico d="M4 6h16M4 12h16M4 18h16" /></button>
+          <span className="rail-sep" aria-hidden="true" />
+          {s.hints ? <button className="rail-btn" onClick={() => void askHint()} disabled={botTurn} aria-label="Hint" title="Hint (H)"><Ico d="M9 18h6M10 21h4M12 3a6 6 0 0 0-4 10.5c.7.7 1 1.5 1 2.5h6c0-1 .3-1.8 1-2.5A6 6 0 0 0 12 3z" /></button> : null}
+          {s.takebacks ? <button className="rail-btn" onClick={takeback} disabled={!g.moves.length || thinking} aria-label="Take back" title="Take back (U)"><Ico d="M9 14L4 9l5-5M4 9h10a6 6 0 0 1 0 12h-3" /></button> : null}
+          <button className="rail-btn" onClick={() => void offerDraw()} aria-label="Draw" title="Offer a draw"><Ico d="M5 9h14M5 15h14" /></button>
+          <button className="rail-btn danger" onClick={resign} aria-label="Resign" title="Resign"><Ico d="M5 21V4M5 4h11l-2 4 2 4H5" /></button>
+          <span className="rail-sep" aria-hidden="true" />
+          <button className="rail-btn" onClick={() => setFlipped((f) => !f)} aria-label="Flip board" title="Flip board (F)"><Ico d="M7 4v16M7 20l-3-3M7 20l3-3M17 20V4M17 4l-3 3M17 4l3 3" /></button>
+          {hint && hint.fen === fen ? <span className="rail-hint" role="status" title={hint.text}>{hint.level}/3</span> : null}
+        </aside>
+      ) : null}
+      <aside className="panel" aria-label="Game panel" hidden={!panelOpen}>
+        {inGame ? <button className="panel-hide" onClick={() => setPanelPref(false)} aria-label="Hide game panel" title="Hide panel">«</button> : null}
         {levelCard ? <LevelCard onDone={() => { setLevelCard(false); void newGame({ mode: "bot", color: g.playerColor, strength: null, tc: g.tc.id }); }} /> : null}
 
         <div className="seg" role="group" aria-label="Opponent">
@@ -298,55 +335,70 @@ export function Play() {
           <button className={"seg-b" + (g.mode === "local" ? " on" : "")} aria-pressed={g.mode === "local"} onClick={() => g.mode !== "local" && void newGame({ mode: "local", color: "w", strength: null, tc: g.tc.id })}>Two players</button>
         </div>
 
-        <p className="status" role="status">
-          {over ? <strong>{resultText(g)}</strong> : viewing ? <>Viewing move {view}. <button className="textlink" onClick={() => setView(null)}>Back to game</button></> :
-            g.mode === "bot" ? (botTurn ? "Bobby is thinking…" : "Your move.") : `${turn === "w" ? "White" : "Black"} to move.`}
-          {g.mode === "bot" && !over && g.botElo ? <small className="muted block">{describeStrength(g.botElo)}</small> : null}
-        </p>
-
-        {showEval ? (
-          <div className="evline" aria-live="off">
-            <strong>{fmtEval(ev?.fen === fen ? ev.e : null)}</strong> <span className="muted">{ev?.fen === fen ? ev.pv : "thinking…"}</span>
-          </div>
-        ) : null}
-
-        {opening ? <p className="opening-name small" data-testid="opening-name"><strong>{opening.eco}</strong> {opening.name}</p> : null}
-        {focused ? <p className="muted small focus-note" data-testid="focus-note">Focus mode: eval and coach are hidden until the game ends.</p> : null}
-
-        {hint && hint.fen === fen ? <p className="hint">Hint {hint.level}/3: {hint.text}</p> : null}
+        <section className="pgroup">
+          <p className="status" role="status">
+            {over ? <strong>{resultText(g)}</strong> : viewing ? <>Viewing move {view}. <button className="textlink" onClick={() => setView(null)}>Back to game</button></> :
+              g.mode === "bot" ? (botTurn ? "Bobby is thinking…" : "Your move") : `${turn === "w" ? "White" : "Black"} to move`}
+          </p>
+          {g.mode === "bot" && !over && g.botElo ? <p className="muted small">{describeStrength(g.botElo)}</p> : null}
+          {opening ? <p className="opening-name small" data-testid="opening-name"><strong>{opening.eco}</strong> {opening.name}</p> : null}
+          {showEval ? (
+            <div className="evline" aria-live="off">
+              <strong>{fmtEval(ev?.fen === fen ? ev.e : null)}</strong> <span className="muted">{ev?.fen === fen ? ev.pv : "thinking…"}</span>
+            </div>
+          ) : null}
+          {focused ? <p className="focus-note" data-testid="focus-note"><span className="dot" aria-hidden="true" />Focus mode: eval and coach return when the game ends.</p> : null}
+          {hint && hint.fen === fen ? <p className="hint">Hint {hint.level}/3: {hint.text}</p> : null}
+        </section>
 
         <MoveList sans={sans} current={viewing ? view! : sans.length} onJump={(p) => setView(p >= sans.length ? null : p)} />
 
         {progress && progress.stage !== "done" ? (
           <p className="muted small">Reviewing your game: {progress.stage === "analysing" ? `${progress.done}/${progress.total} positions` : progress.stage}…</p>
         ) : null}
-        {over && progress?.stage === "done" ? <button className="btn btn-primary" onClick={() => go(`/review/${g.id}`)}>Open review</button> : null}
+        {over && progress?.stage === "done" ? <button className="btn btn-primary btn-wide" onClick={() => go(`/review/${g.id}`)}>Open review</button> : null}
 
-        <div className="btnrow">
-          {!over ? <>
+        {!over ? (
+          <div className="actions">
             {s.hints ? <button className="btn" onClick={() => void askHint()} disabled={botTurn} title="Hint (H). Press again for more.">Hint</button> : null}
             {s.takebacks ? <button className="btn" onClick={takeback} disabled={!g.moves.length || thinking} title="Take back (U)">Take back</button> : null}
             <button className="btn" onClick={() => void offerDraw()} disabled={!g.moves.length}>Draw</button>
             <button className="btn btn-danger" onClick={resign} disabled={!g.moves.length}>Resign</button>
-          </> : null}
-          <button className={"btn" + (over ? " btn-primary" : "")} onClick={() => setShowNew(true)}>New game</button>
-        </div>
+          </div>
+        ) : null}
+        <button className={"btn btn-wide" + (over ? " btn-primary" : " btn-soft")} onClick={() => setShowNew(true)}>New game</button>
 
         <form className="typed" onSubmit={typedMove}>
           <label className="sr-only" htmlFor="typed">Type a move</label>
           <input id="typed" value={moveText} onChange={(e) => setMoveText(e.target.value)} placeholder="Type a move (e4, Nf3, e7e8q)" autoComplete="off" spellCheck={false} disabled={over || botTurn} />
         </form>
 
-        <div className="btnrow small-row">
-          <button className="chip" onClick={() => setFlipped((f) => !f)}>Flip</button>
-          {g.mode === "local" ? <label className="check"><input type="checkbox" checked={autoFlip} onChange={(e) => setAutoFlip(e.target.checked)} /> Auto-flip</label> : null}
-          <label className="check"><input type="checkbox" checked={s.focusMode} onChange={(e) => settings.set({ focusMode: e.target.checked })} /> Focus mode</label>
-          <button className="chip" onClick={() => setCoach(true)} disabled={focused} title={focused ? "Hidden in focus mode until the game ends" : "Ask Bobby about this position"}>Ask Bobby</button>
-          <button className="chip" onClick={() => setShowIO(true)}>PGN / FEN</button>
+        <div className="opts">
+          <button className="opt" onClick={() => setFlipped((f) => !f)} title="Flip board (F)">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M7 4v16M7 20l-3-3M7 20l3-3M17 20V4M17 4l-3 3M17 4l3 3" /></svg>
+            Flip board
+          </button>
+          {g.mode === "local" ? <label className="switch"><input type="checkbox" checked={autoFlip} onChange={(e) => setAutoFlip(e.target.checked)} /><span className="track" aria-hidden="true" />Auto-flip</label> : null}
+          <label className="switch"><input type="checkbox" checked={s.focusMode} onChange={(e) => settings.set({ focusMode: e.target.checked })} /><span className="track" aria-hidden="true" />Focus mode</label>
         </div>
       </aside>
 
-      {coach && !focused ? <CoachDrawer fen={fen} context={{ page: "play", opening: opening?.name ?? null, moves_played: sans.length }} onClose={() => setCoach(false)} /> : null}
+      {!coachOpen ? <CoachRail onOpen={() => setCoachPref(true)} /> : null}
+      <CoachDrawer hidden={!coachOpen} onClose={inGame ? () => setCoachPref(false) : undefined} fen={fen} board={cb}
+        locked={focused ? "Focus mode is on, so Bobby stays quiet until the game ends. Turn it off in the panel to chat now." : undefined}
+        summary={over && g.moves.length ? { gameId: g.id, pending: !!progress && progress.stage !== "done" } : null} />
+      {risky ? (
+        <Dialog title="Wait, are you sure?" onClose={() => setRisky(null)}>
+          <div className="form safety">
+            <p className="safety-warn"><span aria-hidden="true">⚠</span> {risky.warn.text}</p>
+            <p className="muted small">The red arrow on the board shows how. The safety net only checks for pieces left hanging and mate in one; you can turn it off in Settings.</p>
+            <div className="btnrow">
+              <button className="btn btn-primary" onClick={() => setRisky(null)} data-testid="safety-cancel">Pick another move</button>
+              <button className="btn" onClick={() => { const u = risky.uci; setRisky(null); if (g) commit(g, u); }} data-testid="safety-play">Play it anyway</button>
+            </div>
+          </div>
+        </Dialog>
+      ) : null}
       {showNew ? <NewGameDialog cur={g} onClose={() => setShowNew(false)} onStart={(o) => { setShowNew(false); void newGame(o); }} /> : null}
       {showIO ? <IODialog g={g} fen={fen} onClose={() => setShowIO(false)} onLoad={(o) => { setShowIO(false); void newGame({ mode: g.mode, color: g.playerColor, strength: g.adaptive ? null : g.botElo, tc: "none", ...o }); }} copy={copy} /> : null}
     </div>
@@ -358,10 +410,16 @@ async function freshBotGame(color: Color | "random", strength: number | null, tc
   let elo = strength;
   if (elo === null) {
     const profile = await ensureProfile();
-    elo = await py.bot_target_rating(profile, settings.get().strengthOffset).catch(() => Math.round(profile.rating));
+    // Rating-based target + your manual offset + today's level step (see lib/progress.ts).
+    const daily = (await todaysProgression().catch(() => null))?.offset ?? 0;
+    elo = await py.bot_target_rating(profile, settings.get().strengthOffset + daily).catch(() => Math.round(profile.rating + daily));
   }
   return newLiveGame({ mode: "bot", playerColor: pc, botElo: elo, adaptive: strength === null, tc: TIME_CONTROLS.find((t) => t.id === tc) ?? TIME_CONTROLS[0], startFen, moves });
 }
+
+const Ico = ({ d }: { d: string }) => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={d} /></svg>
+);
 
 function resultText(g: LiveGame) {
   const draw = g.result === "1/2-1/2";
@@ -379,13 +437,13 @@ function NewGameDialog({ cur, onClose, onStart }: { cur: LiveGame; onClose: () =
   return (
     <Dialog title="New game" onClose={onClose}>
       <div className="form">
-        <label>Opponent <select value={mode} onChange={(e) => setMode(e.target.value as "bot" | "local")}><option value="bot">Bobby</option><option value="local">Two players, one screen</option></select></label>
+        <label>Opponent <Select value={mode} onChange={(e) => setMode(e.target.value as "bot" | "local")}><option value="bot">Bobby</option><option value="local">Two players, one screen</option></Select></label>
         {mode === "bot" ? <>
-          <label>Your colour <select value={color} onChange={(e) => setColor(e.target.value as Color | "random")}><option value="w">White</option><option value="b">Black</option><option value="random">Random</option></select></label>
-          <label>Bobby's strength <select value={strength ?? "adaptive"} onChange={(e) => setStrength(e.target.value === "adaptive" ? null : +e.target.value)}>
-            <option value="adaptive">Adaptive (your level)</option>{FIXED_STRENGTHS.map((x) => <option key={x} value={x}>About {x}</option>)}</select></label>
+          <label>Your colour <Select value={color} onChange={(e) => setColor(e.target.value as Color | "random")}><option value="w">White</option><option value="b">Black</option><option value="random">Random</option></Select></label>
+          <label>Bobby's strength <Select value={strength ?? "adaptive"} onChange={(e) => setStrength(e.target.value === "adaptive" ? null : +e.target.value)}>
+            <option value="adaptive">Adaptive (your level)</option>{FIXED_STRENGTHS.map((x) => <option key={x} value={x}>About {x}</option>)}</Select></label>
         </> : null}
-        <label>Time <select value={tc} onChange={(e) => setTc(e.target.value)}>{TIME_CONTROLS.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}</select></label>
+        <label>Time <Select value={tc} onChange={(e) => setTc(e.target.value)}>{TIME_CONTROLS.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}</Select></label>
         <div className="btnrow"><button className="btn btn-primary" onClick={() => onStart({ mode, color, strength, tc })}>Start</button><button className="btn" onClick={onClose}>Cancel</button></div>
       </div>
     </Dialog>

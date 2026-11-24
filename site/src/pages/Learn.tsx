@@ -10,7 +10,6 @@ import { tryMove, uciOf } from "../lib/chess";
 import { markActivity } from "../lib/progress";
 import { go, useRoute } from "../lib/router";
 import { useSettings } from "../lib/useSettings";
-import { explain } from "../lib/coach";
 
 interface LP extends LessonProgressRow { step?: number; done?: boolean; completedAt?: string; mistakes?: number; steps?: number }
 
@@ -106,7 +105,6 @@ function LessonPlayer({ id, index, onExit }: { id: string; index: LessonMeta[]; 
   const [mistakes, setMistakes] = useState(0);
   const [finished, setFinished] = useState(false);
   const [suggest, setSuggest] = useState<{ lesson: LessonMeta; why: string } | null>(null);
-  const [coach, setCoach] = useState("");
 
   useEffect(() => {
     let live = true;
@@ -122,7 +120,7 @@ function LessonPlayer({ id, index, onExit }: { id: string; index: LessonMeta[]; 
   }, [id]);
 
   const step = lesson?.steps[idx];
-  useEffect(() => { if (step) { setFen(step.fen); setFeedback(null); setPending(undefined); setHint(false); setMarks({}); setLast(null); setCoach(""); } }, [step]);
+  useEffect(() => { if (step) { setFen(step.fen); setFeedback(null); setPending(undefined); setHint(false); setMarks({}); setLast(null); } }, [step]);
 
   const save = useCallback(async (stepIdx: number, done: boolean) => {
     if (!lesson) return;
@@ -225,12 +223,10 @@ function LessonPlayer({ id, index, onExit }: { id: string; index: LessonMeta[]; 
         ) : null}
         {feedback ? <p className={"fb " + (feedback.ok ? "ok" : "bad")} role="status">{feedback.text}</p> : null}
         {hint && step.hint && pending === undefined ? <p className="hint">{step.hint}</p> : null}
-        {coach ? <p className="hint coach-say">{coach}</p> : null}
         <div className="btnrow">
           {step.type === "info" && pending === undefined ? <button className="btn btn-primary" onClick={() => void check("")}>Continue</button> : null}
           {pending !== undefined ? <button className="btn btn-primary" onClick={() => void advance()} data-testid="lesson-continue">{pending === null ? "Finish lesson" : "Continue"}</button> : null}
           {step.type !== "info" && pending === undefined && s.hints ? <button className="btn" onClick={() => setHint(true)} disabled={hint}>Hint</button> : null}
-          {pending !== undefined && step.type !== "info" && (s.llm.provider === "custom" ? s.llm.baseUrl : s.llm.key) ? <button className="btn" onClick={async () => setCoach((await explain({ fen: step.fen, lesson: lesson.title, question: step.prompt, explanation: step.explanation }, "chat").catch(() => ({ text: step.explanation }))).text)}>Explain more</button> : null}
         </div>
         <button className="textlink" onClick={() => { if (idx > 0) setIdx(idx - 1); else toast("This is the first step."); }}>Previous step</button>
       </aside>

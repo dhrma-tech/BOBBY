@@ -10,37 +10,6 @@ FACTS = {"fen": "r1bqkb1r/pppp1ppp/2n5/4p2Q/2B1P3/8/PPPP1PPP/RNB1K1NR b KQkq - 3
          "cards": [{"title": "f7", "text": "The f7 square is only guarded by the king early on."}]}
 
 
-def test_personas():
-    ps = api.personas()
-    assert [p["id"] for p in ps] == ["closer", "prodigy", "observer", "visionary"]
-    for p in ps:
-        assert p["name"] and p["tagline"] and p["style"]
-        assert set(p["voice"]) == {"rate", "pitch", "preferGender"}
-
-
-@pytest.mark.parametrize("mode", ["move_explain", "review", "chat", "hint"])
-@pytest.mark.parametrize("persona", ["closer", "prodigy", "observer", "visionary", {"custom": "pirate, cheerful"}])
-def test_prompt_grounding(persona, mode):
-    pr = api.coach_prompt(persona, FACTS, mode)
-    s = pr["system"]
-    assert "ONLY the engine facts" in s and "Never evaluate" in s
-    assert "Nf6" in pr["user"] and "FACTS" in pr["user"]
-
-
-def test_prompt_errors():
-    with pytest.raises(ValueError):
-        api.coach_prompt("nobody", FACTS, "review")
-    with pytest.raises(ValueError):
-        api.coach_prompt("closer", FACTS, "poem")
-    with pytest.raises(ValueError):
-        api.coach_prompt({"custom": "   "}, FACTS, "chat")
-
-
-def test_custom_is_fenced_and_capped():
-    pr = api.coach_prompt({"custom": "x" * 1000}, FACTS, "chat")
-    assert "<<<" in pr["system"] and "x" * 401 not in pr["system"]
-
-
 def test_templates():
     t = api.template_explanation(FACTS, "move_explain")
     assert "Nf6" in t and "blunder" in t and "g6" in t and "mate threats" in t

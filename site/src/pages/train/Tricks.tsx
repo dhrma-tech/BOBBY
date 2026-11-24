@@ -5,6 +5,7 @@ import type { Puzzle } from "../../bridge/types";
 import { data, lessonForTag, TAG_THEME, type KnowledgeCard } from "../../lib/data";
 import { markActivity } from "../../lib/progress";
 import { themedQueue, markSeen } from "./Puzzles";
+import { useRoute } from "../../lib/router";
 
 const GROUPS: [string, string[]][] = [
   ["All", []], ["Tactics", ["tactic", "fork", "pin", "skewer", "discovered", "double_check", "deflection", "decoy", "x_ray", "zwischenzug", "removing_defender", "overloaded", "trapped_piece"]],
@@ -19,7 +20,10 @@ export function Tricks() {
   const [sel, setSel] = useState<KnowledgeCard | null>(null);
   const [ex, setEx] = useState<{ q: Puzzle[]; i: number } | null>(null);
   const [exErr, setExErr] = useState("");
+  const cardParam = useRoute().q.get("card");
   useEffect(() => { data.cards().then(setCards).catch(() => setCards([])); }, []);
+  // Deep link from the top search bar: #/train?tab=tricks&card=<id>
+  useEffect(() => { const c = cards?.find((x) => x.id === cardParam); if (c) { setGroup("All"); setSel(c); setEx(null); setExErr(""); } }, [cards, cardParam]);
   const shown = useMemo(() => {
     const tags = GROUPS.find(([g]) => g === group)?.[1] ?? [];
     return (cards ?? []).filter((c) => !tags.length || c.tags.some((t) => tags.includes(t)));

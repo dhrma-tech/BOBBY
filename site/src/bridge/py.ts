@@ -4,7 +4,7 @@ import { useSyncExternalStore } from "react";
 import { fallback } from "./fallback";
 import type {
   AnalyzedGame, BenchmarkRow, Card, Challenge, Classification, ClassifyInputMove, Color, CoachMode, GameResultInput, GameState, LessonCheck,
-  Level, ParsedPgn, PgnMove, Persona, PlanItem, Profile, Puzzle, StatsSummary, WeaknessState, Achievement,
+  Level, ParsedPgn, PgnMove, Progression, Viz, PlanItem, Profile, Puzzle, StatsSummary, WeaknessState, Achievement,
 } from "./types";
 
 export type BridgeMode = "idle" | "loading" | "python" | "fallback";
@@ -88,7 +88,9 @@ export const py = {
   srs_review: (card: Card, grade: 0 | 1 | 2 | 3, today: string) => call<Card>("srs_review", card, grade, today),
   due_cards: (cards: Card[], today: string) => call<Card[]>("due_cards", cards, today),
   daily_plan: (profile: Profile, weakness: WeaknessState, cards: Card[], today: string) => call<{ items: PlanItem[] }>("daily_plan", profile, weakness, cards, today),
-  generate_challenges: (weakness: WeaknessState, profile: Profile, today: string) => call<Challenge[]>("generate_challenges", weakness, profile, today),
+  generate_challenges: (weakness: WeaknessState, profile: Profile, today: string, progression: Progression | null = null) => call<Challenge[]>("generate_challenges", weakness, profile, today, progression),
+  daily_progression: (profile: Profile, games: AnalyzedGame[], prev: Progression | null, yesterday: Challenge[], today: string) => call<Progression>("daily_progression", profile, games, prev, yesterday, today),
+  progress_report: (games: AnalyzedGame[], weakness: WeaknessState, progression: Progression | null) => call<Record<string, unknown>>("progress_report", games, weakness, progression),
   update_challenges: (challenges: Challenge[], analyzed_game: AnalyzedGame) => call<Challenge[]>("update_challenges", challenges, analyzed_game),
   check_achievements: (profile: Profile, stats: unknown, achievements: Achievement[]) => call<Achievement[]>("check_achievements", profile, stats, achievements),
   lesson_check: (lesson: unknown, step_index: number, answer: string) => call<LessonCheck>("lesson_check", lesson, step_index, answer),
@@ -97,7 +99,7 @@ export const py = {
   export_all: (data: unknown) => call<{ version: number; data: unknown }>("export_all", data),
   import_all: (blob: unknown) => call<Record<string, unknown[]>>("import_all", blob),
   // coach
-  coach_prompt: (persona: string | { custom: string }, facts: Record<string, unknown>, mode: CoachMode) => call<{ system: string; user: string }>("coach_prompt", persona, facts, mode),
   template_explanation: (facts: Record<string, unknown>, mode: CoachMode) => call<string>("template_explanation", facts, mode),
-  personas: () => call<Persona[]>("personas"),
+  explain_move: (move: Record<string, unknown>, reply_pv: string[]) => call<{ text: string; viz: Viz; tags: string[] }>("explain_move", move, reply_pv),
+  explain_position: (fen: string, question: string, lines: { pv: string[]; cp: number | null; mate: number | null }[]) => call<{ text: string; viz: Viz; tags: string[] }>("explain_position", fen, question, lines),
 };

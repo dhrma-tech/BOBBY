@@ -14,32 +14,51 @@ def _ch(today: str, kind: str, tag: str | None, title: str, desc: str, target: i
             "target": target, "progress": 0, "reward": reward, "date": today, "done": False}
 
 
-def generate_challenges(weakness: dict | None, profile: dict, today: str) -> list[dict]:
+def generate_challenges(weakness: dict | None, profile: dict, today: str, progression: dict | None = None) -> list[dict]:
+    """Today's challenges. With a `progression` (see progression.daily_progression) the targets follow recent form:
+    accuracy a little above your average, a blunder cap a little below it, and a win at today's level."""
     out = []
+    prog = progression or {}
     for t in top_tags(weakness, 2):
         if t in MOTIFS:
             out.append(_ch(today, "use_motif", t, f"Land a {tag_title(t).lower().rstrip('s')}",
                            f"Play a good move that creates a {t.replace('_', ' ')} in a game.", 1, 30))
         out.append(_ch(today, "avoid_tag", t, f"Clean on: {tag_title(t)}",
                        f"Finish a game without a mistake tagged {t.replace('_', ' ')}.", 1, 20))
-    out.append(_ch(today, "no_blunders", None, "No blunders", "Finish a game with zero blunders.", 1, 25))
-    target_acc = CLEAN_ACCURACY if profile.get("rating", 0) >= 1200 else 70
+    cap = prog.get("blunder_cap")
+    if cap:
+        out.append(_ch(today, "max_blunders", None, f"At most {cap} blunder{'' if cap == 1 else 's'}",
+                       f"Finish a game with {cap} blunder{'' if cap == 1 else 's'} or fewer. Check every capture and threat first.",
+                       cap, 25))
+    else:
+        out.append(_ch(today, "no_blunders", None, "No blunders", "Finish a game with zero blunders.", 1, 25))
+    target_acc = prog.get("accuracy_target") or (CLEAN_ACCURACY if profile.get("rating", 0) >= 1200 else 70)
     out.append(_ch(today, "accuracy", None, f"Accuracy {target_acc}%", f"Score {target_acc}% accuracy or more in a game.",
                    target_acc, 25))
+    if prog.get("step", 0) > 0:
+        lvl = prog.get("base_rating", 0) + prog.get("offset", 0)
+        out.append(_ch(today, "win_game", None, f"Beat Bobby at ~{lvl}", "Bobby levelled up today. Win one game against him.", 1, 40))
     out.append(_ch(today, "play_games", None, "Play 3 games", "Play three games today.", 3, 15))
     seen, uniq = set(), []
     for c in out:
         if c["id"] not in seen:
             seen.add(c["id"])
             uniq.append(c)
-    return uniq[:5]
+    return uniq[:6]
 
 
-def _progress(c: dict, s: dict) -> int:
+def _progress(c: dict, s: dict, game: dict | None = None) -> int:
     rows = [r for r in s["rows"] if r["is_player"]]
     k = c["kind"]
     if k == "play_games":
         return c["progress"] + 1
+    if k == "max_blunders":
+        # progress shows how far under the cap the best game came; done once a game stays within the cap
+        return c["target"] if s["blunders"] <= c["target"] else c["progress"]
+    if k == "win_game":
+        res, pc = (game or {}).get("result"), (game or {}).get("player_color", "w")
+        won = res in ("1-0", "0-1") and (res == "1-0") == (pc == "w")
+        return max(c["progress"], int(won))
     if k == "no_blunders":
         return max(c["progress"], int(s["blunders"] == 0))
     if k == "accuracy":
@@ -57,7 +76,7 @@ def update_challenges(challenges: list[dict], analyzed_game: dict) -> list[dict]
     for c in challenges:
         c = dict(c)
         if not c.get("done"):
-            c["progress"] = min(c["target"], _progress(c, s))
+            c["progress"] = min(c["target"], _progress(c, s, analyzed_game))
             c["done"] = c["progress"] >= c["target"]
         out.append(c)
     return out

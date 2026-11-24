@@ -1,5 +1,7 @@
 # Bobby: Final Build Plan (v1)
 
+> **Update (2026-11-24):** the AI/LLM coach, API keys and personas were removed. The coach is now rule-based: engine facts + tactic detectors (`py/bobby/explain.py`) produce plain-language answers with board arrows. Sections below that mention the LLM, providers or personas describe the original plan; see `docs/CONTRACT.md` for the current API.
+
 Open-source, single-user, local-first AI chess learning app. Plays you at your level, learns how you play, coaches you in a persona voice. Chess logic is always engine-grounded; the LLM only explains.
 
 Repo: `dhrma-tech/bobby` | License: GPL-3.0 (Stockfish and Lichess-derived parts are GPL) | Design base: `dhrma-tech/Cubicle`
@@ -69,10 +71,10 @@ Python-first, one-click access. Python runs in the browser (Pyodide in a Web Wor
 - Persona voice on all coach text; optional spoken output
 
 ### Personas (tone only)
-- The Closer: confident, sharp, "I don't lose" energy
-- The Prodigy: quick-learning, precise, encouraging
-- The Observer: charming, observant, theatrical
-- The Visionary: first-principles, blunt, fast
+- Harvey: confident, sharp, "I don't lose" energy
+- Mike: quick-learning, precise, encouraging
+- Patrick: charming, observant, theatrical
+- Elon: first-principles, blunt, fast
 - Custom coach: user types any tone description (own key, own input)
 - Switch any time, even mid-game. Each persona has its own voice settings (rate, pitch, chosen system voice)
 

@@ -15,7 +15,6 @@ export interface KV<T = unknown> { key: string; value: T }
 /** SRS card for a puzzle; puzzles generated from the user's own mistakes are embedded so they export with it. */
 export interface PuzzleProgressRow extends Card { id: string; puzzle?: Puzzle }
 export interface LessonProgressRow { id: string; [k: string]: unknown }
-export interface PersonaRow { id: string; name: string; custom: string }
 
 class BobbyDB extends Dexie {
   profile!: Table<KV<Profile>, string>;
@@ -26,9 +25,7 @@ class BobbyDB extends Dexie {
   lessonProgress!: Table<LessonProgressRow, string>;
   challenges!: Table<Challenge, string>;
   achievements!: Table<Achievement, string>;
-  personas!: Table<PersonaRow, string>;
   current!: Table<KV, string>; // autosave of the game in progress
-  coachCache!: Table<{ key: string; text: string; at: string }, string>; // LLM answers per position+persona (not exported)
   constructor() {
     super("bobby");
     this.version(1).stores({
@@ -36,6 +33,8 @@ class BobbyDB extends Dexie {
       puzzleProgress: "id, due", lessonProgress: "id", challenges: "id", achievements: "id", personas: "id", current: "key",
     });
     this.version(2).stores({ coachCache: "key" });
+    // v3: the AI coach was removed (rule-based coach only): drop its answer cache and the personas table.
+    this.version(3).stores({ coachCache: null, personas: null });
   }
 }
 
@@ -56,13 +55,11 @@ export const store = {
   clearCurrent: () => db.current.delete("game"),
 };
 
-const LIST_TABLES = ["games", "analysis", "puzzleProgress", "lessonProgress", "challenges", "achievements", "personas"] as const;
+const LIST_TABLES = ["games", "analysis", "puzzleProgress", "lessonProgress", "challenges", "achievements"] as const;
 
 /** Export everything through Python `export_all`. Shape follows py/bobby/export.py SCHEMA. */
 export async function exportAll(): Promise<string> {
-  // The API key never leaves the device, not even in an export file.
-  const s = loadSettings();
-  const data: Record<string, unknown> = { profile: await store.getProfile(), weakness: await store.getWeakness(), settings: { ...s, llm: { ...s.llm, key: "" } } };
+  const data: Record<string, unknown> = { profile: await store.getProfile(), weakness: await store.getWeakness(), settings: loadSettings() };
   for (const t of LIST_TABLES) data[t] = await db.table(t).toArray();
   return JSON.stringify(await py.export_all(data));
 }
@@ -82,9 +79,7 @@ export async function importAll(json: string): Promise<void> {
   });
   const ls = data.settings;
   if (ls && typeof ls === "object") {
-    const keep = loadSettings().llm.key;
-    const merged = normalise(ls as Partial<Settings>);
-    saveSettings({ ...merged, llm: { ...merged.llm, key: merged.llm.key || keep } });
+    saveSettings(normalise(ls as Partial<Settings>));
   }
 }
 
@@ -98,37 +93,38 @@ export async function resetAll() {
 export type Theme = "auto" | "light" | "dark";
 export type BoardTheme = "green" | "brown" | "blue" | "gray";
 export type PieceSet = "classic" | "glyph" | "letters";
-export type Provider = "anthropic" | "openai" | "google" | "openrouter" | "custom";
 export interface VoicePrefs { rate: number; pitch: number; voiceURI: string }
-export interface LlmSettings { provider: Provider; model: string; key: string; baseUrl: string }
 export interface Settings {
   theme: Theme; boardTheme: BoardTheme; pieceSet: PieceSet; coordinates: boolean; sounds: boolean; legalHighlights: boolean;
-  takebacks: boolean; hints: boolean; strengthOffset: number; persona: string; customCoach: string; levelCardDismissed: boolean;
+  takebacks: boolean; hints: boolean; strengthOffset: number; levelCardDismissed: boolean;
+  /** Safety net: ask before a move that hangs a piece or allows mate in one. */
+  safetyNet: boolean;
   /** Focus mode: eval, hints and coach are hidden during a game until it ends. Default ON. */
   focusMode: boolean; showEval: boolean;
-  voice: { enabled: boolean; per: Record<string, VoicePrefs> };
-  llm: LlmSettings;
+  voice: { enabled: boolean } & VoicePrefs;
   /** Settings schema revision, used for one-time migrations. */
   rev: number;
 }
-export const DEFAULT_MODELS: Record<Provider, string> = {
-  anthropic: "claude-haiku-5-5", openai: "", google: "", openrouter: "", custom: "",
-};
-export const SETTINGS_REV = 2;
+export const SETTINGS_REV = 3;
 export const defaults: Settings = {
   theme: "auto", boardTheme: "green", pieceSet: "classic", coordinates: true, sounds: true, legalHighlights: true,
-  takebacks: true, hints: true, strengthOffset: 0, persona: "prodigy", customCoach: "", levelCardDismissed: false,
+  takebacks: true, hints: true, strengthOffset: 0, levelCardDismissed: false, safetyNet: true,
   focusMode: true, showEval: true,
-  voice: { enabled: false, per: {} },
-  llm: { provider: "anthropic", model: DEFAULT_MODELS.anthropic, key: "", baseUrl: "" },
+  voice: { enabled: false, rate: 1, pitch: 1, voiceURI: "" },
   rev: SETTINGS_REV,
 };
 const SETTINGS_KEY = "bobby:settings:v1";
 function normalise(raw: Partial<Settings>): Settings {
-  const s: Settings = { ...defaults, ...raw, voice: { ...defaults.voice, ...(raw.voice ?? {}) }, llm: { ...defaults.llm, ...(raw.llm ?? {}) } };
+  // Drop settings of the removed AI coach (provider, API key, personas) and the old per-persona voice map.
+  const { llm: _llm, persona: _p, customCoach: _c, ...rest } = raw as Partial<Settings> & { llm?: unknown; persona?: unknown; customCoach?: unknown };
+  const v = (raw.voice ?? {}) as Partial<Settings["voice"]> & { per?: unknown };
+  const { per: _per, ...voice } = v;
+  void _llm; void _p; void _c; void _per;
+  const s: Settings = { ...defaults, ...rest, voice: { ...defaults.voice, ...voice } };
   s.strengthOffset = Math.max(-200, Math.min(200, Math.round(Number(s.strengthOffset) || 0)));
   // rev < 2: focus mode used to default off; the review asked for it to default ON during games.
-  if ((raw.rev ?? 1) < 2) { s.focusMode = true; s.rev = SETTINGS_REV; }
+  if ((raw.rev ?? 1) < 2) s.focusMode = true;
+  s.rev = SETTINGS_REV;
   return s;
 }
 export function loadSettings(): Settings {

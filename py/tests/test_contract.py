@@ -8,7 +8,7 @@ CONTRACT = ["new_game", "apply_move", "legal_moves", "parse_pgn", "to_pgn", "cla
             "new_profile", "update_rating", "bot_target_rating", "update_weakness", "benchmarks_compare",
             "puzzles_from_mistakes", "select_puzzles", "srs_new_card", "srs_review", "due_cards", "daily_plan",
             "generate_challenges", "update_challenges", "check_achievements", "lesson_check", "stats_summary",
-            "export_all", "import_all", "coach_prompt", "template_explanation", "personas"]
+            "export_all", "import_all", "explain_move", "explain_position", "template_explanation"]
 
 
 def test_all_contract_functions_exist():
@@ -51,7 +51,7 @@ def test_json_roundtrip_everything(game):
     _rt(api.stats_summary([{"id": "g1", "date": "2026-11-20", "result": "1-0", "player_color": "b"}],
                           [{"game_id": "g1", "moves": g["moves"]}]))
     _rt(api.import_all(api.export_all({"games": []})))
-    _rt(api.coach_prompt("observer", {"move": "e4"}, "move_explain"))
+    _rt(api.explain_move({**g["moves"][0], "class": "best"}, []))
+    _rt(api.explain_position(chess.STARTING_FEN, "plan", [{"pv": ["e2e4"], "cp": 30, "mate": None}]))
     _rt(api.template_explanation({"move": "e4", "class": "best"}, "move_explain"))
-    _rt(api.personas())
     _rt(api.position_difficulty(chess.STARTING_FEN, [{"pv": ["e2e4"], "cp": 30, "mate": None}], 1000))

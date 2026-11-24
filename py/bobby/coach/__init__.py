@@ -1,1 +1,1 @@
-"""Coach: personas, LLM prompts, no-LLM templates."""
+"""Coach text: rule-based summaries (templates.py). Move and position explanations live in bobby/explain.py."""

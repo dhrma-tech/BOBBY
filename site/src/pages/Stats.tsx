@@ -7,6 +7,7 @@ import type { BenchmarkRow, Profile, StatsSummary } from "../bridge/types";
 import { data } from "../lib/data";
 import { statsGame } from "../lib/pipeline";
 import { go } from "../lib/router";
+import { Select } from "../components/Select";
 
 const PHASE_LABEL = { opening: "Opening", middle: "Middlegame", end: "Endgame" } as const;
 const short = (d: string) => (d ?? "").slice(5, 10);
@@ -112,9 +113,9 @@ export function Stats() {
       <section className="history">
         <h2 className="sub-h">Game history <small className="muted">{shown.length}</small></h2>
         <div className="filters" role="group" aria-label="Filters">
-          <select aria-label="Result" value={f.result} onChange={(e) => setF({ ...f, result: e.target.value })}><option value="all">All results</option><option value="win">Wins</option><option value="loss">Losses</option><option value="draw">Draws</option><option value="unfinished">Unfinished</option></select>
-          <select aria-label="Mode" value={f.mode} onChange={(e) => setF({ ...f, mode: e.target.value })}><option value="all">All games</option><option value="bot">vs Bobby</option><option value="local">Two-player / imported</option></select>
-          <select aria-label="Colour" value={f.color} onChange={(e) => setF({ ...f, color: e.target.value })}><option value="all">Both colours</option><option value="w">As White</option><option value="b">As Black</option></select>
+          <Select aria-label="Result" value={f.result} onChange={(e) => setF({ ...f, result: e.target.value })}><option value="all">All results</option><option value="win">Wins</option><option value="loss">Losses</option><option value="draw">Draws</option><option value="unfinished">Unfinished</option></Select>
+          <Select aria-label="Mode" value={f.mode} onChange={(e) => setF({ ...f, mode: e.target.value })}><option value="all">All games</option><option value="bot">vs Bobby</option><option value="local">Two-player / imported</option></Select>
+          <Select aria-label="Colour" value={f.color} onChange={(e) => setF({ ...f, color: e.target.value })}><option value="all">Both colours</option><option value="w">As White</option><option value="b">As Black</option></Select>
           <input type="text" aria-label="Opening filter" placeholder="Opening or ending" value={f.q} onChange={(e) => setF({ ...f, q: e.target.value })} />
         </div>
         {shown.length ? (

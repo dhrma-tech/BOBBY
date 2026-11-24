@@ -43,10 +43,16 @@ Stats & data
 - `export_all(data) -> {version, data}` ; `import_all(blob) -> data` (validate schema/version, raise `ValueError`)
 
 Coach
-- `coach_prompt(persona, facts, mode) -> {system, user}`  (persona: id of builtin or `{custom:str}`; mode: "move_explain"|"review"|"chat"|"hint"; `facts` = engine facts dict: fen, move, class, evals, best line (SAN), weakness tags, knowledge cards)
-- `template_explanation(facts, mode) -> str`  (no-LLM fallback)
-- `personas() -> [{id, name, tagline, style, voice:{rate,pitch,preferGender}}]`  ids: `closer`, `prodigy`, `observer`, `visionary`
-- Persona rule: changes tone only. The prompt must instruct the LLM to explain only the supplied facts and never evaluate moves itself. No real-person or TV-character names or quotes.
+Rule-based, no AI: every answer is built from engine facts plus the tactic detectors in `tactics.py`.
+- `explain_move(move, reply_pv) -> {text, viz, tags}`  (`move`: one analysed move {fen_before, uci, san, class, eval_before, eval_after, best_uci, best_pv?}; `reply_pv`: engine best line for the opponent after it)
+- `explain_position(fen, question, lines) -> {text, viz, tags}`  (question: "threats"|"danger"|"best"|"better"|"plan"; `lines`: engine lines [{pv, cp, mate}], white view; "you" = side to move)
+- `viz` = {arrows:[[from, to, "best"|"threat"|"played"]], squares:{sq: "danger"|"warn"|"good"}, line:{fen, moves:[uci]}|null}
+- `template_explanation(facts, mode) -> str`  (mode: "review" post-game summary | "progress" recent-games report)
+
+Progression
+- `daily_progression(profile, games, prev, yesterday_challenges, today) -> progression`  (once per day: offset step +-50 from recent form, accuracy target, blunder cap)
+- `progress_report(games, weakness, progression) -> facts` for `template_explanation(.., "progress")`
+- `generate_challenges(weakness, profile, today, progression=None)` uses the progression's targets when given.
 
 ## Data schemas (`data/`, owned by data agent; consumed by Python and TS)
 - `puzzles.json`: `[{id, fen, solution:[uci], themes:[str], rating:int, popularity:int}]` (fen = position before the opponent's setup move is already applied; solution starts with the solver's move)

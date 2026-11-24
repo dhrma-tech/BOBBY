@@ -5,6 +5,7 @@ import { Learn } from "./pages/Learn";
 import { Train } from "./pages/Train";
 import { Stats } from "./pages/Stats";
 import { Palette } from "./components/Palette";
+import { SearchBar } from "./components/SearchBar";
 import { Toaster } from "./components/Toast";
 import { SettingsDialog } from "./dialogs/SettingsDialog";
 import { Dialog } from "./dialogs/Dialog";
@@ -16,7 +17,7 @@ import { useBridgeStatus } from "./bridge/py";
 
 const NAV: [string, string, string][] = [["Play", "/", ""], ["Learn", "/learn", "learn"], ["Train", "/train", "train"], ["Stats", "/stats", "stats"]];
 const SHORTCUTS: [string, string][] = [
-  ["Ctrl/Cmd + K", "Command palette"], ["?", "Show shortcuts"], ["g then p / l / t / s", "Go to Play, Learn, Train, Stats"],
+  ["Ctrl/Cmd + K", "Command palette"], ["/", "Search"], ["?", "Show shortcuts"], ["g then p / l / t / s", "Go to Play, Learn, Train, Stats"],
   ["← / →", "Step through moves"], ["F", "Flip board"], ["H", "Hint (press again for more)"], ["U", "Take back"], ["N", "New game"], [",", "Settings"],
 ];
 
@@ -59,11 +60,10 @@ export default function App() {
     return () => removeEventListener("keydown", onKey);
   }, []);
 
-  const cmds = useMemo<Cmd[]>(() => {
-    if (!pal) return [];
+  // App-level commands, shared by the palette and the top search bar (page commands are added from the registry).
+  const base = useMemo<Cmd[]>(() => {
     const last = async () => { const gs = await store.listGames(); if (gs[0]) go(`/review/${gs[0].id}`); };
     return [
-      ...commands.get(),
       ...NAV.map(([l, h]) => ({ id: "p:" + h, label: l, hint: "Page", run: () => go(h) })),
       { id: "review-last", label: "Review last game", hint: "Page", run: () => void last() },
       { id: "settings", label: "Settings", hint: "Dialog", keys: ",", run: () => setSet(true) },
@@ -73,11 +73,11 @@ export default function App() {
       { id: "t-auto", label: "Theme: match system", hint: "Action", run: () => settings.set({ theme: "auto" }) },
       { id: "sounds", label: s.sounds ? "Sounds: off" : "Sounds: on", hint: "Action", run: () => settings.set({ sounds: !s.sounds }) },
       ...([["puzzles", "Puzzles"], ["endgames", "Endgames"], ["openings", "Openings explorer"], ["tricks", "Tricks library"], ["challenges", "Daily plan and challenges"]] as const).map(([t, l]) => ({ id: "tr:" + t, label: l, hint: "Train", run: () => go(`/train?tab=${t}`) })),
-      { id: "persona", label: "Change coach persona", hint: "Dialog", run: () => setSet(true) },
       { id: "voice", label: s.voice.enabled ? "Voice: off" : "Voice: on", hint: "Action", run: () => settings.set({ voice: { ...s.voice, enabled: !s.voice.enabled } }) },
       { id: "help", label: "Keyboard shortcuts", hint: "Help", keys: "?", run: () => setHelp(true) },
     ];
-  }, [pal, s.sounds, s.voice]);
+  }, [s.sounds, s.voice]);
+  const cmds = useMemo<Cmd[]>(() => (pal ? [...commands.get(), ...base] : []), [pal, base]);
 
   const [p0, p1] = route.path;
   const page = p0 === "review" && p1 ? <Review id={p1} key={p1} />
@@ -90,9 +90,12 @@ export default function App() {
       <a className="skip" href="#main" onClick={(e) => { e.preventDefault(); document.getElementById("main")?.focus(); }}>Skip to content</a>
       <header className="top">
         <a className="brand" href="#/" aria-label="Bobby home"><img className="brand-mark" src="./icon.svg" alt="" width="32" height="32" />Bobby</a>
-        <nav className="topnav" aria-label="Main">
-          {NAV.map(([l, h, k]) => <a key={h} href={"#" + h} className={"tn" + (active === k ? " on" : "")} aria-current={active === k ? "page" : undefined}>{l}</a>)}
-        </nav>
+        <div className="top-c">
+          <nav className="topnav" aria-label="Main">
+            {NAV.map(([l, h, k]) => <a key={h} href={"#" + h} className={"tn" + (active === k ? " on" : "")} aria-current={active === k ? "page" : undefined}>{l}</a>)}
+          </nav>
+          <SearchBar base={base} />
+        </div>
         <div className="top-r">
           {bs.mode === "loading" ? <span className="pill" title="Loading the Python core in the background">Loading core…</span> : null}
           {bs.mode === "fallback" ? <span className="pill warn" title={bs.error ?? "Python core unavailable; using dev fallback"}>Dev fallback</span> : null}
