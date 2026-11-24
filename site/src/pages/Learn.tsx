@@ -177,7 +177,9 @@ function LessonPlayer({ id, index, onExit }: { id: string; index: LessonMeta[]; 
   if (err) return <div className="page empty"><h1>Lesson</h1><p className="err">{err}</p><button className="btn" onClick={onExit}>Back to lessons</button></div>;
   if (!lesson || !step) return <div className="loading">Loading lesson…</div>;
   const turn = fen.split(" ")[1] === "b" ? "b" : "w";
-  const orientation = step.type === "move" && turn === "b" ? "black" : "white";
+  // Orient from the side that solves the step (the step's starting position), so the board doesn't flip after
+  // the student plays their move.
+  const orientation = step.type === "move" && step.fen.split(" ")[1] === "b" ? "black" : "white";
 
   if (finished) {
     return (
