@@ -20,3 +20,6 @@ scripts/.cache/
 *.rtbz
 syzygy/
 *.whl
+
+# cubicle raw caches
+data/cubicle/raw/
